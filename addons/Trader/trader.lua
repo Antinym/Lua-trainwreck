@@ -3,8 +3,8 @@ _addon.command = 'trade'
 packets = require('packets') 
 
 trade_request = packets.new('outgoing', 0x032) 
-trade_accept = packets.new('outgoing', 0x33, {Type = 0}) 
-trade_confirm = packets.new('outgoing', 0x33, {Type = 2}) 
+trade_accept = packets.new('outgoing', 0x033, {Type = 0}) 
+trade_confirm = packets.new('outgoing', 0x033, {Type = 2}) 
 
 whitelist = L{
 	'Jahya',

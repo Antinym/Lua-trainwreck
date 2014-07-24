@@ -1,5 +1,6 @@
-**Author:** Giuliano Riccio
-**Version:** v 1.20140210
+**Author:** Giuliano Riccio  
+**Updater:** (Kaivalya.Carbuncle)  
+**Version:** v 1.20140520   
 
 # FindAll #
 
@@ -9,12 +10,12 @@ The addon has a deferral time of 20 seconds when it's loaded, you are logging in
 If you notice that this time is too short, please create an issue report in the bug tracker.
 
 ## Commands ##
-### findall ###
-Forces a list update
 
+Note: All commands can be shortened to `//fa`.
 ```
-findall
+//findall
 ```
+This forces an update and reloads the storages.json file.
 
 ### Search ###
 Looks for any item whose name (long or short) contains the specified value on the specified characters.
@@ -22,38 +23,44 @@ Looks for any item whose name (long or short) contains the specified value on th
 ```
 findall [:<character1> [:...]] <query> [-e<filename>|--export=<filename>]
 ```
-* **_character1_:** the name of the characters to use for the search.
-* **...:** variable list of character names.
-* **_query_** the word you are looking for.
-* **-e<filename>** or **--export=<filename>** exports the results to a csv file. The file will be created in the data folder.
+* `:character1` the name of the characters to use for the search. You can use `:me` for the current character.
+* `:...` variable list of character names. If no character is specified all characters will be searched.
+* `query` the item name you are looking for. Partial matching will return all results.
+* `-e<filename>` or `--export=<filename>` exports the results to a csv file. The file will be created in the data folder.
 
 ### Examples ###
-Search for "thaumas" on all your characters.
+```
+findall :all cookie
+```
+Search for "cookie" on all your characters.
 
 ```
-findall thaumas
+findall cookie
 ```
-Search for "thaumas" on "alpha" and "beta" characters.
+Search for "cookie" on current character.
 
 ```
-findall :alpha :beta thaumas
+findall :alpha :beta :me cookie
 ```
-Show all the items stored on "omega".
+Search for "cookie" on "alpha", "beta" and current characters.
 
 ```
 findall :omega
 ```
+Show all the items stored on "omega".
 
 ----
 
 ##TODO##
-
-- Use IPC to notify the addon about any change to the character's items list to reduce the amount of file rescans.
-- Use IPC to synchronize the list between PCs in LAN or Internet (requires IPC update).
+1. Add tracking.
 
 ----
 
 ##Changelog##
+### v1.20140521 ###
+* **change**: Made local search default.
+* **added**: //fa command. Added :all and :me options for character search.
+
 ### v1.20140328 ###
 * **change**: Changed the inventory structure refresh rate using packets.
 * **add**: IPC usage to track changes across simultaneously active accounts.

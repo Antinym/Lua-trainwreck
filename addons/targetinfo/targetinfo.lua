@@ -2,8 +2,10 @@ _addon.name = 'TargetInfo'
 _addon.author = 'Arcon'
 _addon.version = '1.0.1.0'
 _addon.language = 'English'
+_addon.commands = {'targetinfo','tit'}
 
 require('luau')
+require('logger')
 texts = require('texts')
 
 -- Config
@@ -14,15 +16,15 @@ defaults.showfullid = true
 defaults.showspeed = true
 defaults.display = {}
 defaults.display.pos = {}
-defaults.display.pos.x = 0
-defaults.display.pos.y = 0
+defaults.display.pos.x = 1
+defaults.display.pos.y = 1
 defaults.display.bg = {}
 defaults.display.bg.red = 0
 defaults.display.bg.green = 0
 defaults.display.bg.blue = 0
 defaults.display.bg.alpha = 102
 defaults.display.text = {}
-defaults.display.text.font = 'Consolas'
+defaults.display.text.font = 'Georgia'
 defaults.display.text.red = 255
 defaults.display.text.green = 255
 defaults.display.text.blue = 255
@@ -34,12 +36,16 @@ settings:save()
 
 text_box = texts.new(settings.display, settings)
 
+tit = {}
+tit.active = false
+tit.id = nil
+
 -- Constructor
 
 initialize = function(text, settings)
     local properties = L{}
     if settings.showfullid then
-        properties:append('ID:  ${full|-}')
+        properties:append('ID:  ${full|-}    \\cs(120,120,255)Name:\\cr   ${name|-}')
     end
     if settings.showhexid then
         properties:append('Hex ID:   ${hex|-}')
@@ -47,6 +53,7 @@ initialize = function(text, settings)
     if settings.showspeed then
         properties:append('Speed: ${speed|-}')
     end
+	properties:append('(x,y,z): ${pos|-}    \\cs(250,250,0)Range:\\cr   ${distance|-}(${range|-})')
 
     text:clear()
     text:append(properties:concat('\n'))
@@ -59,9 +66,20 @@ initialize(text_box, settings)
 -- Events
 
 windower.register_event('prerender', function()
-	local mob = windower.ffxi.get_mob_by_target('t')
+	local mob
+	if tit.active == true then
+		mob = windower.ffxi.get_mob_by_id(tit.id)
+	elseif tit.active == false then
+		mob = windower.ffxi.get_mob_by_target('t')
+	end
+	--[[
+	mob = T(mob)
+	mob:vprint(true)
+	windower.send_command('lua u targetinfo')
+	--]]
 	if mob and mob.id > 0 then
         local info = {}
+		info.name = mob.name
         info.hex = mob.id:hex():slice(-3)
         info.full = mob.id:string():lpad(' ', 8)
         local speed = (100 * (mob.movement_speed / 5 - 1)):round(2)
@@ -72,11 +90,31 @@ windower.register_event('prerender', function()
                 '\\cs(255,0,0)' .. speed:string():lpad(' ', 5)
             or
                 '\\cs(102,102,102)' .. ('+' .. speed):lpad(' ', 5)) .. '%\\cr'
+		info.pos = ('(' .. tostring(mob.x):split('.')[1] .. ',' .. tostring(mob.y):split('.')[1] .. ',' .. tostring(mob.z):split('.')[1] .. ')')
+		info.distance = tostring(mob.distance):split('.')[1]
+		info.range = ('%.1f':format(mob.distance:sqrt()))
         text_box:update(info)
         text_box:show()
 	else
 		text_box:hide()
 	end
+end)
+
+windower.register_event('addon command', function(tit_id)
+--determine if track by id or track by name
+--gonna track by id first since its easier to implement
+	--local mart = windower.ffxi.get_mob_array()
+	--local tit_name = windower.ffxi.get_mob_by_name(tit_id)
+	local big_tit = windower.ffxi.get_mob_by_id(tit_id)
+	if big_tit ~= nil then
+		tit.active = true
+		tit.id = big_tit.id
+	else
+		tit.active = false
+		tit.id = nil
+	end
+	
+	print('2')
 end)
 
 --[[

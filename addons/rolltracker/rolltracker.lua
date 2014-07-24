@@ -25,13 +25,14 @@
 --SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 _addon.name = 'RollTracker'
-_addon.version = '1.2.0.1'
+_addon.version = '1.3.0.0'
 _addon.author = 'Balloon'
 _addon.command = 'rolltracker'
 
 require('luau')
 chat = require('chat')
 chars = require('chat.chars')
+packets = require('packets')
 
 defaults = {}
 defaults.autostop = 0
@@ -61,8 +62,32 @@ windower.register_event('addon command',function (...)
     end
 end)
 
+--This is done because GearSwap swaps out too fast, and sometimes things aren't reported in memory.
+--Therefore, we store it within rolltracker so we can do the check locally.
+windower.register_event('outgoing chunk', function(id,data)
+    if id == 0x050 then
+        local packet = packets.parse('outgoing', data)
+        local slot = windower.ffxi.get_items(packet['Bag'])[packet['Item Index']]
+        gearTable[packet['Equip Slot']] = slot ~= nil and slot.id or 0
+    end
+end)
+
+function getGear(slot)
+    local equip = windower.ffxi.get_items()['equipment']
+    return windower.ffxi.get_items(equip[slot..'_bag'])[equip[slot]]~= nil and windower.ffxi.get_items(equip[slot..'_bag'])[equip[slot]].id or 0
+end
+
 windower.register_event('load', function()
-    buffId = S{res.buffs:with('english', 'Bust').id} + S(res.buffs:english(string.endswith-{' Roll'})):map(table.get-{'id'})
+
+    --We need a gear table, and we need to initialise it when we load 
+    --So that if someone doesn't swap gear, at least it still works.
+    gearTable = {
+        [0]=getGear('main'),[1]=getGear('sub'),[2]=getGear('range'),[3]=getGear('ammo'),
+        [4]=getGear('head'),[9]=getGear('neck'),[11]=getGear('left_ear'),[12]=getGear('right_ear'),
+        [5]=getGear('body'),[6]=getGear('hands'),[13]=getGear('left_ring'),[14]=getGear('right_ring'),
+        [15]=getGear('back'),[10]=getGear('waist'),[7]=getGear('legs'),[8]=getGear('feet')
+    }
+    buffId = S{309} + S(res.buffs:english(string.endswith-{' Roll'})):map(table.get-{'id'})
     partyColour = {
         p0 = string.char(0x1E, 247),
         p1 = string.char(0x1F, 204),
@@ -72,35 +97,36 @@ windower.register_event('load', function()
         p5 = string.char(0x1E, 6)
     }
     local rollInfoTemp = {
-        ['Chaos'] = {6,8,9,25,11,13,16,3,17,19,31,"-4", '% Attack!', 4},
-        ['Fighter\'s'] = {2,2,3,4,12,5,6,7,1,9,18,'-4','% Double-Attack!', 5},
-        ['Wizard\'s'] = {2,3,4,4,10,5,6,7,1,7,12, "-4", ' MAB', 5},
-        ['Evoker\'s'] = {1,1,1,1,3,2,2,2,1,3,4,'-1', ' Refresh!',5},
-        ['Rogue\'s'] = {2,2,3,4,12,5,6,6,1,8,19,'-6', '% Critical Hit Rate!', 5},
-        ['Corsair\'s'] = {10, 11, 11, 12, 20, 13, 15, 16, 8, 17, 24, '-6', '% Experience Bonus',5},
-        ['Hunter\'s'] = {10,13,15,40,18,20,25,5,27,30,50,'-?', ' Accuracy Bonus',4},
-        ['Magus\'s'] = {5,20,6,8,9,3,10,13,14,15,25,'-8',' Magic Defense Bonus',2},
-        ['Healer\'s'] = {3,4,12,5,6,7,1,8,9,10,16,'-4','% Cure Potency',3},
-        ['Drachen'] = {10,13,15,40,18,20,25,5,28,30,50,'-8',' Pet: Accuracy Bonus',4},
-        ['Choral'] = {8,42,11,15,19,4,23,27,31,35,50,'+25', '- Spell Interruption Rate',2},
-        ['Monk\'s'] = {8,10,32,12,14,15,4,20,22,24,40,'-?', ' Subtle Blow', 3},
-        ['Beast'] = {6,8,9,25,11,13,16,3,17,19,31,'-10', '% Pet: Attack Bonus',4},
-        ['Samurai'] = {7,32,10,12,14,4,16,20,22,24,40,'-10',' Store TP Bonus',2},
-        ['Warlock\'s'] = {2,3,4,12,15,6,7,1,8,9,15,'-5',' Magic Accuracy Bonus',4},
-        ['Puppet'] = {4,5,18,7,9,10,2,11,13,15,22,'-8',' Pet: Magic Attack Bonus',3},
-        ['Gallant\'s'] = {4,5,15,6,7,8,3,9,10,11,20,'-10','% Defense Bonus', 3},
-        ['Dancer\'s'] = {3,4,12,5,6,7,1,8,9,10,16,'-4',' Regen',3},
-        ['Bolter\'s'] = {2,3,12,4,6,7,8,9,5,10,25,'-8','% Movement Speed',3},
-        ['Caster\'s'] = {6,15,7,8,9,10,5,11,12,13,20,'-10','% Fast Cast',2},
-        ['Tactician\'s'] = {2,2,2,2,4,2,2,1,3,3,5,'-1',' Regain',5},
-        ['Miser\'s'] = {3,5,7,9,20,11,2,13,15,17,25,'0',' Save TP',5},
-        ['Ninja'] = {4,5,5,14,6,7,9,2,10,11,18,'-10',' Evasion Bonus',4},
-        ['Scholar\'s'] = {'?','?','?','?','?','?','?','?','?','?','?','?',' Conserve MP',2},
-        ['Allies\''] = {6,7,17,9,11,13,15,17,17,5,17,'?','% Skillchain Damage',3},
-        ['Companion\'s'] = {'4HP +2TP','20HP +5TP','6HP +2TP','8HP +2TP','10HP +3TP','12HP +3TP','14HP +3TP','16HP +4TP','18HP +4TP','3HP +1TP','25HP +6TP','-',' Pet: Regen and Regain',2},
-        ['Avenger\'s'] = {'?','?','?','?','?','?','?','?','?','?','?','?',' Counter Rate',4},
-        ['Blitzer\'s'] = {2,3.4,4.5,11.3,5.3,6.4,7.2,8.3,1.5,10.2,12.1,'-?', '% Attack delay reduction',4},
-        ['Courser\'s'] = {'?','?','?','?','?','?','?','?','?','?','?','?',' Snapshot',3}
+        -- Okay, this goes 1-11 boost, Bust effect, Effect, Lucky, +1 Phantom Roll Effect, Bonus Equipment and Effect,
+        ['Chaos'] = {6,8,9,25,11,13,16,3,17,19,31,"-4", '% Attack!', 4, 3},
+        ['Fighter\'s'] = {2,2,3,4,12,5,6,7,1,9,18,'-4','% Double-Attack!', 5, 1},
+        ['Wizard\'s'] = {4,6,8,10,25,12,14,17,2,20,30, "-10", ' MAB', 5, 2},
+        ['Evoker\'s'] = {1,1,1,1,3,2,2,2,1,3,4,'-1', ' Refresh!',5, 1},
+        ['Rogue\'s'] = {2,2,3,4,12,5,6,6,1,8,14,'-6', '% Critical Hit Rate!', 5, 1},
+        ['Corsair\'s'] = {10, 11, 11, 12, 20, 13, 15, 16, 8, 17, 24, '-6', '% Experience Bonus',5, 2},
+        ['Hunter\'s'] = {10,13,15,40,18,20,25,5,27,30,50,'-?', ' Accuracy Bonus',4, 5},
+        ['Magus\'s'] = {5,20,6,8,9,3,10,13,14,15,25,'-8',' Magic Defense Bonus',2, 2},
+        ['Healer\'s'] = {3,4,12,5,6,7,1,8,9,10,16,'-4','% Cure Potency',3, 1},
+        ['Drachen'] = {10,13,15,40,18,20,25,5,28,30,50,'-8',' Pet: Accuracy Bonus',4, 5},
+        ['Choral'] = {8,42,11,15,19,4,23,27,31,35,50,'+25', '- Spell Interruption Rate',2, 0},
+        ['Monk\'s'] = {8,10,32,12,14,15,4,20,22,24,40,'-?', ' Subtle Blow', 3, 4},
+        ['Beast'] = {6,8,9,25,11,13,16,3,17,19,31,'-10', '% Pet: Attack Bonus',4, 3},
+        ['Samurai'] = {7,32,10,12,14,4,16,20,22,24,40,'-10',' Store TP Bonus',2, 4},
+        ['Warlock\'s'] = {2,3,4,12,5,6,7,1,8,9,15,'-5',' Magic Accuracy Bonus',4, 1},
+        ['Puppet'] = {5,8,35,11,14,18,2,22,26,30,40,'-8',' Pet: Magic Attack Bonus',3, 3},
+        ['Gallant\'s'] = {4,5,15,6,7,8,3,9,10,11,20,'-10','% Defense Bonus', 3, 2.4},
+        ['Dancer\'s'] = {3,4,12,5,6,7,1,8,9,10,16,'-4',' Regen',3, 2},
+        ['Bolter\'s'] = {0.3,0.3,0.8,0.4,0.4,0.5,0.5,0.6,0.2,0.7,1.0,'-8','% Movement Speed',3, 0.2},
+        ['Caster\'s'] = {6,15,7,8,9,10,5,11,12,13,20,'-10','% Fast Cast',2, 3,{7,11140,10}},
+        ['Tactician\'s'] = {10,10,10,10,30,10,10,0,20,20,40,'-10',' Regain',5, 2, {5, 11100, 10}},
+        ['Miser\'s'] = {30,50,70,90,200,110,20,130,150,170,250,'0',' Save TP',5, 15},
+        ['Ninja'] = {4,5,5,14,6,7,9,2,10,11,18,'-10',' Evasion Bonus',4, 2},
+        ['Scholar\'s'] = {'?','?','?','?','?','?','?','?','?','?','?','?',' Conserve MP',2, 0},
+        ['Allies\''] = {6,7,17,9,11,13,15,17,17,5,17,'?','% Skillchain Damage',3, 1,{6,11120, 5}},
+        ['Companion\'s'] = {{4,20},{20, 50},{6,20},{8, 20},{10,30},{12,30},{14,30},{16,40},{18, 40}, {3,10},{30, 70},'-?',' Pet: Regen/Regain',2, {1,5}},
+        ['Avenger\'s'] = {'?','?','?','?','?','?','?','?','?','?','?','?',' Counter Rate',4, 0},
+        ['Blitzer\'s'] = {2,3.4,4.5,11.3,5.3,6.4,7.2,8.3,1.5,10.2,12.1,'-?', '% Attack delay reduction',4, 1, {4,11080, 5}},
+        ['Courser\'s'] = {'?','?','?','?','?','?','?','?','?','?','?','?',' Snapshot',3, 0}
     }
 
     rollInfo = {}
@@ -115,6 +141,8 @@ end)
 
 windower.register_event('load', 'login', function()
     isLucky = false
+    ringBonus = false
+    lastRoll = 0
     player = windower.ffxi.get_player()
 end)
 
@@ -144,6 +172,7 @@ windower.register_event('action', function(act)
         rollActor = act.actor_id
         local rollID = act.param
         local rollNum = act.targets[1].actions[1].param
+
         
         -- anonymous function that checks if the player.id is in the targets without wrapping it in another layer of for loops.
         if 
@@ -169,20 +198,80 @@ windower.register_event('action', function(act)
 
             local membersHit = table.concat(rollMembers, ', ')
             --fake 'ternary' assignment. if settings.effected is 1 then it'll show numbers, otherwise it won't.
-            local amountHit = settings.effected == 1 and '[' .. #rollMembers .. '] ' or ''
-            
+            local amountHit = settings.effected == 1 and '[' .. #rollMembers .. '] ' or ''            
+            local rollBonus = RollEffect(rollID, rollNum+1)
+            local luckChat = ''
             isLucky = false
             if rollNum == rollInfo[rollID][15] or rollNum == 11 then 
                 isLucky = true
-                windower.add_to_chat(1, amountHit..membersHit..chat.controls.reset..' '..chars.implies..' '..rollInfo[rollID][1]..' Roll '..chars['circle' .. rollNum]..string.char(31,158)..' (Lucky!)'..string.char(31,13)..' (+'..rollInfo[rollID][rollNum+1]..rollInfo[rollID][14]..')'..BustRate(rollNum, id))
-            elseif rollNum == 12 and #rollMembers > 0 then
+                luckChat = string.char(31,158).." (Lucky!)"
+            end
+
+            if rollNum == 12 and #rollMembers > 0 then
                 windower.add_to_chat(1, string.char(31,167)..amountHit..'Bust! '..chat.controls.reset..chars.implies..' '..membersHit..' '..chars.implies..' ('..rollInfo[rollID][rollNum+1]..rollInfo[rollID][14]..')')
             else
-                windower.add_to_chat(1, amountHit..membersHit..chat.controls.reset..' '..chars.implies..' '..rollInfo[rollID][1]..' Roll '..chars['circle' .. rollNum]..string.char(31,13)..' (+'..rollInfo[rollID][rollNum+1]..rollInfo[rollID][14]..')'..BustRate(rollNum, id))
+                windower.add_to_chat(1, amountHit..membersHit..chat.controls.reset..' '..chars.implies..' '..rollInfo[rollID][1]..' Roll '..chars['circle' .. rollNum]..luckChat..string.char(31,13)..' (+'..rollBonus..')'..BustRate(rollNum, id))
             end
         end
     end
 end)
+
+
+function RollEffect(rollid, rollnum)
+    if rollnum == 13 then
+        return
+    end
+
+
+    --There's gotta be a better way to do this.
+    local rollName = rollInfo[rollid][1]
+    local rollVal = rollInfo[rollid][rollnum]
+    
+    if lastRoll ~= rollid then 
+        lastRoll = rollid
+        ringBonus = false
+    end
+
+    --I'm handling one roll a bit odd, so I need to deal with it seperately.
+    --Which is stupid, I know, but look at how I've done most of this
+    if rollName == "Companion\'s" then
+        local hpVal = rollVal[1]
+        local tpVal = rollVal[2]
+        if gearTable[13] == 28548 or gearTable[14]== 28548 or ringBonus then
+            hpVal =  hpVal + (rollInfo[rollid][16][1]*5)
+            tpVal = tpVal  + (rollInfo[rollid][16][2]*5)
+            ringBonus = true
+        elseif gearTable[13] == 28547 or gearTable[14] == 28547 or ringBonus then
+            hpVal =  hpVal + (rollInfo[rollid][16][1]*3)
+            tpVal = tpVal  + (rollInfo[rollid][16][2]*3)
+            ringBonus = true
+        end
+        return "Pet:"..hpVal.." Regen".." +"..tpVal.." Regain" 
+    end
+
+    --If there's no Roll Val can't add to it
+    if rollVal ~= '?' then
+        if gearTable[13] == 28548 or gearTable[14] == 28548 or ringBonus then
+            rollVal = rollVal + (rollInfo[rollid][16]*5)
+            ringBonus = true
+        elseif gearTable[13] == 28547 or gearTable[14] == 28547 or ringBonus then
+            rollVal = rollVal + (rollInfo[rollid][16]*3)
+            ringBonus = true
+        end
+    end
+    -- Convert Bolters to Movement Speed based on 5.0 being 100%
+    if(rollName == "Bolter\'s") then
+        rollVal = '%.0f':format(100*((5+rollVal) / 5 - 1))
+    end
+
+    if(rollInfo[rollid][17] ~= nil) then
+        local bonusVal = gearTable[rollInfo[rollid][17][1]] == rollInfo[rollid][17][2] and rollInfo[rollid][17][3] or 0 
+        rollVal = rollVal + bonusVal
+    end
+
+    return rollVal..rollInfo[rollid][14]
+end
+
 
 function BustRate(num, rollerID)
     if num <= 5 or num == 11 or rollerID ~= player.id or settings.bust == 0 then
@@ -194,34 +283,33 @@ end
 --Checks to see if the below event has ran more than twice to enable busting
 ranMultiple = false
 windower.register_event('outgoing text', function(original, modified)
-    if not original:match('/raw') then
-        if original:match('/jobability \"Double.*Up') then
-            if isLucky and not override and rollActor == player.id then
-                windower.add_to_chat(159,'Attempting to Doubleup on a Lucky Roll: Re-double up to continue.')
-                isLucky = false
-                return true
-            end
-        end
-        
-        if settings.fold == 1 and original:match('/jobability \"Fold') then
-            local count = 0
-            local canBust = false
-
-            --Check to see how many buffs are active
-            local cor_buffs = S(player.buffs) * buffId
-            canBust = cor_buffs:contains(res.buffs:with('name', 'Bust').id) or cor_buffs:length() > 1
-
-            if canBust or ranMultiple then
-                modified = original
-                ranMultiple = false
-            else
-                windower.add_to_chat(159, 'No \'Bust\'. Fold again to continue.')
-                ranMultiple = true
-                return true
-            end
-            
-            return modified
+    modified = original
+    if original:match('/jobability \"Double.*Up') then
+        if isLucky and not override and rollActor == player.id then
+            windower.add_to_chat(159,'Attempting to Doubleup on a Lucky Roll: Re-double up to continue.')
+            isLucky = false
+            modified = ""
         end
     end
+    
+    if settings.fold == 1 and original:match('/jobability \"Fold') then
+        local count = 0
+        local canBust = false
+
+        --Check to see how many buffs are active
+        local cor_buffs = S(player.buffs) * buffId
+        canBust = cor_buffs:contains(res.buffs:with('name', 'Bust').id) or cor_buffs:length() > 1
+        if canBust or ranMultiple then
+            modified = original
+            ranMultiple = false
+        else
+            windower.add_to_chat(159, 'No \'Bust\'. Fold again to continue.')
+            ranMultiple = true
+            modified = ""
+        end
+        
+        return modified
+    end
+   return modified
     
 end)

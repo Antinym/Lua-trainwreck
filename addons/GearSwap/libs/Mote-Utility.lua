@@ -36,7 +36,7 @@ function cancel_conflicting_buffs(spell, action, spellMap, eventArgs)
 		elseif spell.english == 'Sneak' and spell.target.type == 'SELF' and buffactive.sneak then
 			send_command('cancel sneak')
 		elseif spell.english == ('Stoneskin') then
-			send_command('@wait 1.5;cancel stoneskin')
+			send_command('@wait 1.0;cancel stoneskin')
 		elseif spell.english:startswith('Monomi') then
 			send_command('@wait 1.7;cancel sneak')
 		elseif spell.english == 'Utsusemi: Ichi' then
@@ -353,11 +353,7 @@ end
 
 -- Function to get the current weather intensity: 0 for none, 1 for single weather, 2 for double weather.
 function get_weather_intensity()
-	if world.weather_id <= 3 then
-		return 0
-	else
-		return (world.weather_id % 2) + 1
-	end
+	return gearswap.res.weather[world.weather_id].intensity
 end
 
 
@@ -395,6 +391,28 @@ function is_trust_party()
 	return true
 end
 
+
+-- Call these function with a list of equipment slots to check ('head', 'neck', 'body', etc)
+-- Returns true if any of the specified slots are currently encumbered.
+-- Returns false if all specified slots are unencumbered.
+function is_encumbered(...)
+	local check_list = {...}
+	-- Compensate for people passing a table instead of a series of strings.
+	if type(check_list[1]) == 'table' then
+		check_list = check_list[1]
+	end
+	local check_set = S(check_list)
+	
+	for slot_id,slot_name in pairs(gearswap.default_slot_map) do
+		if check_set:contains(slot_name) then
+			if gearswap.encumbrance_table[slot_id] then
+				return true
+			end
+		end
+	end
+	
+	return false
+end
 
 -------------------------------------------------------------------------------------------------------------------
 -- Elemental gear utility functions.
@@ -533,7 +551,7 @@ function load_sidecar(job)
 	if not job then return false end
 	
 	-- filename format example for user-local files: whm_gear.lua, or playername_whm_gear.lua
-	local filenames = {player.name..'_'..job..'_gear.lua', job..'_gear.lua'}
+	local filenames = {player.name..'_'..job..'_gear.lua', job..'_gear.lua', 'gear/'..player.name..'_'..job..'_gear.lua', 'gear/'..job..'_gear.lua'}
 	return optional_include(filenames)
 end
 
@@ -616,8 +634,12 @@ end
 
 -- This is a function that can be attached to a registered event for 'time change'.
 -- It will send a call to the update() function if the time period changes.
--- To use in your job lua, add this line:
+-- It will also call job_time_change when any of the specific time class values have changed.
+-- To activate this in your job lua, add this line to your user_setup function:
 -- windower.register_event('time change', time_change)
+--
+-- Variables it sets: classes.Daytime, and classes.DuskToDawn.  They are set to true
+-- if their respective descriptors are true, or false otherwise.
 function time_change(new_time, old_time)
 	local was_daytime = classes.Daytime
 	local was_dusktime = classes.DuskToDawn

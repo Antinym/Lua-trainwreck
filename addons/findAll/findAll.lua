@@ -30,8 +30,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 _addon.name    = 'findAll'
 _addon.author  = 'Zohno'
-_addon.version = '1.20140328'
-_addon.command = 'findAll'
+_addon.version = '1.20140520'
+_addon.commands = {'findAll', 'fa'}
 
 require('chat')
 require('lists')
@@ -55,6 +55,8 @@ storages_order         = L{'temporary', 'inventory', 'wardrobe', 'safe', 'storag
 storage_slips_order    = L{'slip 01', 'slip 02', 'slip 03', 'slip 04', 'slip 05', 'slip 06', 'slip 07', 'slip 08', 'slip 09', 'slip 10', 'slip 11', 'slip 12', 'slip 13', 'slip 14', 'slip 15', 'slip 16', 'slip 17', 'slip 18', 'slip 19'}
 merged_storages_orders = L{}:extend(storages_order):extend(storage_slips_order)
 resources              = require ('resources').items
+
+
 
 function search(query, export)
     update()
@@ -364,11 +366,31 @@ windower.register_event('addon command', function(...)
         local params = L{...}
         local query  = L{}
         local export = nil
-
-        while params:length() > 0 and params[1]:match('^[:!]%a+$') do
-            query:append(params:remove(1))
+		local s_all = L{':a',':all'}
+		local clear_names = false
+		
+		if params:length() > 0 and not params[1]:find('^[:!]%a+$') then
+			query:append(':'..windower.ffxi.get_player().name)
+		else
+			while params:length() > 0 and params[1]:match('^[:!]%a+$') do
+				if clear_names then 
+					query:clear()
+					while params:length() > 0 and params[1]:match('^[:!]%a+$') do
+						params:remove(1)
+					end
+					clear_names = false
+					break
+				elseif s_all:contains(params[1]) then 
+					params:remove(1)
+					clear_names = true
+				elseif params[1] == ':me' then 
+					params[1] = ':'..windower.ffxi.get_player().name
+					query:append(params:remove(1))
+				else
+					query:append(params:remove(1))
+				end
+			end
         end
-
         if params:length() > 0 then
             export = params[params:length()]:match('^--export=(.+)$') or params[params:length()]:match('^-e(.+)$')
 

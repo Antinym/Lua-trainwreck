@@ -118,7 +118,8 @@ function search(query, export)
     for i,_ in pairs(new_item_ids) do
         local id = tonumber(i)
 	    if (resources[id]) then
-            item_names[i] = {
+   
+   item_names[i] = {
                 ['name'] = resources[id].name,
                 ['long_name'] = resources[id].name_log
             }
@@ -475,44 +476,38 @@ windower.register_event('unhandled command', function(command1, command2, ...)
 end)
 
 --#track
-function count_item(item, ibags)
+function count_item(item, bags)
 	local item_name = item
-	local bag_list = ibags
+	local bag_list = bags
 	local item_count = 0
 	--local id = 0
 	-- if we are looking for free space remaining then get the total
 	if windower.wc_match(item_name, '?free') then  
 		for k, v in pairs(bag_list) do
-			local bagData = windower.ffxi.get_items(k)
-			local c = bagData.max - bagData.count
+			local itemData = windower.ffxi.get_items(k)
+			local c = itemData.max - itemData.count
 			item_count = item_count + c
 		end
 	else
 		--item_name = item:escape():gsub('%a', function(char) return string.format("[%s%s]", char:lower(), char:upper()) end)
-
+		print(item_name)
 		--print(type(res.items:with('name', windower.wc_match-{item_name}).id))
-		local item_id = ((res.items:with('name', windower.wc_match-{item_name})) or {}).id 
-		if item_id == nil then
-			item_id = ((res.items:with('name_log', windower.wc_match-{item_name})) or {}).id
-			if item_id == nil then
+		local id = ((res.items:with('name', windower.wc_match-{item_name})) or {}).id 
+		print(id)
+		if id == nil then
+			id = ((res.items:with('name_log', windower.wc_match-{item_name})) or {}).id
+			if id == nil then
 				log('Unknown item')
 			end
 		end
-		if item_id ~= nil then
+		if id ~= nil then
 			for k, v in pairs(bag_list) do
-			print(k, v, item_id)
 				if k == 3 then
 					-- skipping temporary bag
 				else
-					-- at this point we've retrieved the first instance of the item's count
-						--#todo figure out how to account for all the items with that id in the bag... might have 
-						--      to iterate over the entire bag checking each item's id
-					local bagData = T(windower.ffxi.get_items(k))
-					local itemData = bagData:with('id',item_id)
-					--[======[
-						eval fumf=T(idata:with(
-						eval fumf=(idata:with('id',item_id).id)
-					]======]
+				print(k, v)
+					local itemData = windower.ffxi.get_items(k, id)
+					print(itemData.count) --#error count should be over 50... it's displaying 0
 					if itemData.count then
 						item_count = item_count + itemData.count
 					end

@@ -93,7 +93,7 @@ track ${bag1.bag2.bagX:item}
 ##Changelog##
 ### v1.20140623 ###
 * **change**:  
-* **added**: tracking works, sorta.  Freespace tracking works, but item counts needs to be recoded.  
+* **added**: tracking works.  full token parsing of all inventory and item matching.
 * 
 ### v1.20140607 ###
 * **change**: Fixed find :<all|a>. It uses the full search query now. 

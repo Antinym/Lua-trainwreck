@@ -1,9 +1,10 @@
 _addon.author = 'Arcon'
-_addon.version = '2.1.1.0'
+_addon.version = '2.1.1.1'
 _addon.language = 'English'
 _addon.command = 'yush'
 
 require('luau')
+text = require('texts')
 
 _innerG = {_binds={}}
 for k, v in pairs(_G) do
@@ -47,8 +48,30 @@ defaults = {}
 defaults.ResetKey = '`'
 defaults.BackKey = 'backspace'
 defaults.VerboseLevel = 2  -- controls what messages to print. 0 = none, 1 = all but loading binds.lua, 2 = normal info, 3 = debug
+defaults.showCrumbs = true
+defaults.breadCrumbs = {}
+defaults.breadCrumbs.pos = {}
+defaults.breadCrumbs.pos.x = 0
+defaults.breadCrumbs.pos.y = 0
+defaults.breadCrumbs.text = {}
+defaults.breadCrumbs.text.font = 'arial'
+defaults.breadCrumbs.text.size = 10
+defaults.breadCrumbs.text.alpha = 255
+defaults.breadCrumbs.text.red = 255
+defaults.breadCrumbs.text.green = 255
+defaults.breadCrumbs.text.blue = 255
+defaults.breadCrumbs.bg = {}
+defaults.breadCrumbs.bg.alpha = 192
+defaults.breadCrumbs.bg.red = 0
+defaults.breadCrumbs.bg.green = 0
+defaults.breadCrumbs.bg.blue = 0
+defaults.breadCrumbs.padding = 5
+defaults.breadCrumbs.name = nil
 
 settings = config.load(defaults)
+
+crumbs_base_string = L{'${name|-}',}:concat('\n')
+breadCrumbs = text.new(crumbs_base_string, settings.breadCrumbs, settings)
 
 binds = {}
 current = binds
@@ -72,16 +95,20 @@ check = function()
     for key, val in pairs(current) do
         if key <= keys then
             if type(val) == 'string' then
-                windower.send_command(val)
+				if val == 'printset' then
+					table.vprint(T(stack[stack:length()]))
+				else
+					windower.send_command(val)
+				end
             else
                 current = val
                 stack:append(current)
             end
-
             return true
         end
+		
     end
-
+	
     return false
 end
 
@@ -99,11 +126,39 @@ parse_binds = function(fbinds, top)
     end
 end
 
+update_crumbs = function(...)
+	if settings.showCrumbs == true then
+		if ... then 
+			breadCrumbs.name = ...
+		else
+			for key, val in pairs(current) do
+				if key:find('name') then breadCrumbs.name = val end
+			end
+		end
+		breadCrumbs:show()
+	else
+		breadCrumbs:hide()
+	end
+end
+
+toggle_crumbs = function(b)
+	if b ~= nil then
+		settings.showCrumbs = b
+	else
+		settings.showCrumbs = not settings.showCrumbs
+	end
+	
+	return settings.showCrumbs
+end
+
 windower.register_event('load', 'login', 'job change', 'logout', function()
     local player = windower.ffxi.get_player()
     local file, path
     local basepath = windower.addon_path .. 'data/'
+	
+	if not player then breadCrumbs:hide() end
     if player then
+		update_crumbs()
         for filepath in L{
             {path = 'name_main_sub.lua',    format = '%s\'s %s/%s'},
             {path = 'name_main.lua',        format = '%s\'s %s'},
@@ -127,14 +182,22 @@ windower.register_event('load', 'login', 'job change', 'logout', function()
         setfenv(file, _innerG)
         parse_binds(file())
         reset()
+		update_crumbs()
 		if path == 'Binds' and settings.VerboseLevel  < 2 then
 			-- don't print('Yush: Loaded ' .. path .. ' Lua file')
 		else
 			print('Yush: Loaded ' .. path .. ' Lua file')
 		end
-    elseif player and settings.VerboseLevel > 0 then
-        print('Yush: No matching file found for %s (%s%s)':format(player.name, player.main_job, player.sub_job and '/' .. player.sub_job or ''))
+    elseif player then
+		breadCrumbs:hide()
+		if settings.VerboseLevel > 0 then
+			print('Yush: No matching file found for %s (%s%s)':format(player.name, player.main_job, player.sub_job and '/' .. player.sub_job or ''))
+		end
     end
+end)
+
+windower.register_event('logout', function()
+	breadCrumbs:hide()
 end)
 
 dikt = {    -- Har har
@@ -242,7 +305,7 @@ dikt = {    -- Har har
 windower.register_event('keyboard', function(dik, down)
     local key = dikt[dik]
 	
-	if settings.VerboseLevel > 3 then print('pressed keys =', keys) end
+	if settings.VerboseLevel >= 3 then notice('pressed keys =', keys) end
     if not key then
         return
     end
@@ -258,20 +321,20 @@ windower.register_event('keyboard', function(dik, down)
         if not windower.ffxi.get_info().chat_open then
             if key == settings.ResetKey then
                 reset()
-                return true
+                return true, update_crumbs()
             elseif key == settings.BackKey then
                 back()
-                return true
+                return true, update_crumbs()
             end
         end
 
-        return check()
+        return check(), update_crumbs()
     end
 end)
 
 windower.register_event('addon command', function(command, ...)
     command = command and command:lower() or 'help'
-	local args = ...
+	local args = L{...}
     if command == 'reset' then
         reset()
 
@@ -279,17 +342,30 @@ windower.register_event('addon command', function(command, ...)
         back()
 
     elseif command == 'press' then
-        keys = keys + S(args:split('+')):map(string.lower)
+        keys = keys + S(args[1]:split('+')):map(string.lower)
         check()
-		keys = keys - S(args:split('+')):map(string.lower)
-	
+		keys = keys - S(args[1]:split('+')):map(string.lower)
+		
 	elseif command == 'r' then
 		windower.send_command('lua r yush')
 	
 	elseif command == 'u' then
 		windower.send_command('lua u yush')
+	
+	elseif command == 'h' then
+		toggle_crumbs(false)
+	
+	elseif command == 's' then
+		toggle_crumbs(true)
 		
+	elseif command == 'set' then
+        if args[1] == 'xy' then breadCrumbs:pos(args[2],args[3])
+		elseif args[1] == 'x' then breadCrumbs:pos_x(args[2])
+		elseif args[1] == 'y' then breadCrumbs:pos_y(args[2])
+		end
     end
+	update_crumbs()
+	
 end)
 
 --[[

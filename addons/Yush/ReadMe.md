@@ -4,7 +4,7 @@ A portable macro engine based on customizable Lua files. Triggers faster than in
 
 ### Usage
 
-This addon has no commands, it only works with custom Lua user files. Upon load, login or job change it tries to load one of the following files in the specified order:
+Upon load, login or job change it tries to load one of the following files in the specified order:
 
 * `P:/ath/to/Windower/addons/Yush/data/Name_MAIN_SUB.lua`
 * `P:/ath/to/Windower/addons/Yush/data/Name_MAIN.lua`
@@ -13,7 +13,24 @@ This addon has no commands, it only works with custom Lua user files. Upon load,
 
 The file needs to return a table. The table is a key -> action mapping, where the key is a combination of keys to press (denoted by the `+` sign) and the action can either be a Windower command or another table. If it's another table, it will open that table and new keys will be looked up in that table.
 
-To go back to the base level, press the button that has been defined in the `data/settings.xml` file as `ResetKey`. To go back only one level, press the button that has been defined in the same file as `BackKey`. They default to `` ` `` and `Backspace` respectively.
+To go back to the base level, press the button that has been defined in the `data/settings.xml` file as `ResetKey`. To go back only one level, press the button that has been defined in the same file as `BackKey`. They default to `` `` `` and `Backspace` respectively.
+
+### Commands
+
+`//yush r|u` is a shortcut for `//lua r yush` and `//lua u yush` respectively.
+
+Yush has three commands for simulating keypresses.
+
+`//yush reset|back`
+
+These execute the `ResetKey` and `BackKey` respectively.
+
+`//yush press <key[+keys]>`
+
+Press takes one or more keys seperated by `+` signs and executes the macro assigned to that combination.
+
+Note: 
+These commands were added to simplify the integration of `binder` aliases with the yush macro system.
 
 ### Includes
 
@@ -118,3 +135,11 @@ return {
     ['Alt+5'] = WS,                 -- Goes to WS sub table
 }
 ```
+
+Using the above example:
+
+This will load the JA table.
+`//yush press alt+2`
+
+This resets back to the base table.
+`//yush reset`

@@ -359,10 +359,11 @@ windower.register_event('addon command', function(command, ...)
 		toggle_crumbs(true)
 		
 	elseif command == 'set' then
-        if args[1] == 'xy' then breadCrumbs:pos(args[2],args[3])
-		elseif args[1] == 'x' then breadCrumbs:pos_x(args[2])
-		elseif args[1] == 'y' then breadCrumbs:pos_y(args[2])
+        if args[1] == 'xy' then breadCrumbs:pos(args[2]:todec(10),args[3]:todec(10))
+		elseif args[1] == 'x' then breadCrumbs:pos_x(args[2]:todec(10))
+		elseif args[1] == 'y' then breadCrumbs:pos_y(args[2]:todec(10))
 		end
+		settings:save()
     end
 	update_crumbs()
 	

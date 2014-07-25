@@ -143,3 +143,8 @@ This will load the JA table.
 
 This resets back to the base table.
 `//yush reset`
+
+### Notes
+
+* When a sub table is loaded the commands from the parent table are unloaded.
+* Do not add a table call that is used in a parent table.  You will cause an error and your file wont load.

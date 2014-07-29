@@ -104,7 +104,7 @@ function search(query, export)
 
     for i,_ in pairs(new_item_ids) do
         local id = tonumber(i)
-	    if (resources[id]) then
+        if (resources[id]) then
             item_names[i] = {
                 ['name'] = resources[id].name,
                 ['long_name'] = resources[id].name_log
@@ -259,7 +259,7 @@ function update()
     if zone_search == false then
         notice('findAll has not detected a fully loaded inventory yet.')
         return false
-	end
+    end
 
     local player_name   = windower.ffxi.get_player().name
     local storages_file = file.new(storages_path)
@@ -273,14 +273,14 @@ function update()
     if global_storages == nil then
         global_storages = T{}
     end
-	
-	local temp_storages = get_storages()
+    
+    local temp_storages = get_storages()
 
-	if temp_storages then
-		global_storages[player_name] = temp_storages
-	else
-		return false
-	end
+    if temp_storages then
+        global_storages[player_name] = temp_storages
+    else
+        return false
+    end
 
     -- build json string
     local characters_json = L{}
@@ -316,27 +316,27 @@ windower.register_event('load', update:cond(function() return windower.ffxi.get_
 
 windower.register_event('incoming chunk', function(id,original,modified,injected,blocked)
     local seq = original:byte(4)*256+original:byte(3)
-	if (next_sequence and seq + next_sequence_offset >= next_sequence) or (time_out and seq + time_out_offset >= time_out) then
+    if (next_sequence and seq + next_sequence_offset >= next_sequence) or (time_out and seq + time_out_offset >= time_out) then
         zone_search = true
-		update()
-		next_sequence = nil
+        update()
+        next_sequence = nil
         time_out = nil
         sequence_offset = 0
-	end
-	
-	if id == 0x00A then -- First packet of a new zone
-		zone_search = false
+    end
+    
+    if id == 0x00A then -- First packet of a new zone
+        zone_search = false
         time_out = seq+33
         if time_out < time_out%0x100 then
             time_out_offset = 256
         end
         
---	elseif id == 0x01D then
-	-- This packet indicates that the temporary item structure should be copied over to
-	-- the real item structure, accessed with get_items(). Thus we wait one packet and
-	-- then trigger an update.
+--    elseif id == 0x01D then
+    -- This packet indicates that the temporary item structure should be copied over to
+    -- the real item structure, accessed with get_items(). Thus we wait one packet and
+    -- then trigger an update.
 --        zone_search = true
---		next_sequence = seq+128
+--        next_sequence = seq+128
 --        if next_sequence < next_sequence%0x100 then
 --            next_sequence_offset = 256
 --        end
@@ -347,7 +347,7 @@ windower.register_event('incoming chunk', function(id,original,modified,injected
         if next_sequence < next_sequence%0x100 then
             next_sequence_offset = 256
         end
-	end
+    end
 end)
 
 windower.register_event('ipc message', function(str)
@@ -366,30 +366,30 @@ windower.register_event('addon command', function(...)
         local params = L{...}
         local query  = L{}
         local export = nil
-		local s_all = L{':a',':all'}
-		local clear_names = false
-		
-		if params:length() > 0 and not params[1]:find('^[:!]%a+$') then
-			query:append(':'..windower.ffxi.get_player().name)
-		else
-			while params:length() > 0 and params[1]:match('^[:!]%a+$') do
-				if clear_names then 
-					query:clear()
-					while params:length() > 0 and params[1]:match('^[:!]%a+$') do
-						params:remove(1)
-					end
-					clear_names = false
-					break
-				elseif s_all:contains(params[1]) then 
-					params:remove(1)
-					clear_names = true
-				elseif params[1] == ':me' then 
-					params[1] = ':'..windower.ffxi.get_player().name
-					query:append(params:remove(1))
-				else
-					query:append(params:remove(1))
-				end
-			end
+        local s_all = L{':a',':all'}
+        local clear_names = false
+        
+        if params:length() > 0 and not params[1]:find('^[:!]%a+$') then
+            query:append(':'..windower.ffxi.get_player().name)
+        else
+            while params:length() > 0 and params[1]:match('^[:!]%a+$') do
+                if clear_names then 
+                    query:clear()
+                    while params:length() > 0 and params[1]:match('^[:!]%a+$') do
+                        params:remove(1)
+                    end
+                    clear_names = false
+                    break
+                elseif s_all:contains(params[1]) then 
+                    params:remove(1)
+                    clear_names = true
+                elseif params[1] == ':me' then 
+                    params[1] = ':'..windower.ffxi.get_player().name
+                    query:append(params:remove(1))
+                else
+                    query:append(params:remove(1))
+                end
+            end
         end
         if params:length() > 0 then
             export = params[params:length()]:match('^--export=(.+)$') or params[params:length()]:match('^-e(.+)$')

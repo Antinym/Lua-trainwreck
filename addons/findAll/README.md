@@ -24,7 +24,7 @@ Looks for any item whose name (long or short) contains the specified value on th
 findall [:<character1> [:...]] <query> [-e<filename>|--export=<filename>]
 ```
 * `:character1` the name of the characters to use for the search. You can use `:me` for the current character.
-* `:...` variable list of character names. If no character is specified all characters will be searched.
+* `:...` variable list of character names. If no character is specified the current character is searched.
 * `query` the item name you are looking for. Partial matching will return all results.
 * `-e<filename>` or `--export=<filename>` exports the results to a csv file. The file will be created in the data folder.
 

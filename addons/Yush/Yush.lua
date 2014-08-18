@@ -1,5 +1,5 @@
 _addon.author = 'Arcon'
-_addon.version = '2.1.1.3'
+_addon.version = '2.2.0.0'
 _addon.language = 'English'
 _addon.command = 'yush'
 
@@ -47,8 +47,12 @@ end})
 defaults = {}
 defaults.ResetKey = '`'
 defaults.BackKey = 'backspace'
-defaults.binderPrefix = 'g11_'
-defaults.VerboseLevel = 2  -- controls what messages to print. 0 = none, 1 = all but loading binds.lua, 2 = normal info, 3 = debug
+defaults.binder = {}
+defaults.binder.prefix = 'g11_'
+defaults.binder.activeset = T{'m1g1','m1g2','m1g3','m1g4','m1g5','m1g6','m1g7','m1g8','m1g9','m1g10','m1g11','m1g12','m1g13','m1g14','m1g15','m1g16','m1g17','m1g18',
+		'm2g1','m2g2','m2g3','m2g4','m2g5','m2g6','m2g7','m2g8','m2g9','m2g10','m2g11','m2g12','m2g13','m2g14','m2g15','m2g16','m2g17','m2g18',
+		'm3g1','m3g2','m3g3','m3g4','m3g5','m3g6','m3g7','m3g8','m3g9','m3g10','m3g11','m3g12','m3g13','m3g14','m3g15','m3g16','m3g17','m3g18'}
+defaults.VerboseLevel = 2  -- controls what messages to print. 0 = none, 1 = mostly just error messages, 2 = normal info, 3 = debug
 defaults.showCrumbs = true
 defaults.breadCrumbs = {}
 defaults.breadCrumbs.pos = {}
@@ -71,19 +75,24 @@ defaults.breadCrumbs.name = nil
 
 settings = config.load(defaults)
 
-crumbs_base_string = L{'${name|-}',}:concat('\n')
+crumbs_base_string = T{'${name|-}',}:concat('\n')
 breadCrumbs = text.new(crumbs_base_string, settings.breadCrumbs, settings)
 
 binds = {}
 current = binds
-stack = L{binds}
+stack = T{binds}
 keys = S{}
+bstack = T{} --#binder binder stack from current
+alocks = T{} --#binder locks aliases in current
+plocks = T{'m3g17',} --#binder player specified locks 
+lock_actions = L{'a','d','l',}
+itest = 1
 
 reset = function()
     current = binds
     while stack:length() >1 do stack:remove() end
     reset_crumbs()
-    setgkeys('StackChange')
+    binder_process('StackChange')
 end
 
 back = function()
@@ -94,7 +103,7 @@ back = function()
         stack:remove()
     end
     update_crumbs()
-    setgkeys('StackChange')
+    binder_process('StackChange')
 end
 
 check = function()
@@ -109,7 +118,7 @@ check = function()
             else
                 current = val
                 stack:append(current)
-                setgkeys('StackChange')
+                binder_process('StackChange')
             end
             return true
         end
@@ -120,20 +129,27 @@ check = function()
 end
 
 parse_binds = function(fbinds, top)
+  if not T(top):empty() then T(top):vprint(true) end
     top = top or binds
-
+    local ll, ls, la = {}
+    
     for key, val in pairs(fbinds) do
-        if key:find('%a%d') then
-            val = 'alias g11_'..key..' '..val
-        end
-        key = S(key:split('+')):map(string.lower)
-        if type(val) == 'string' then
-            rawset(top, key, val)
+        if key == 'lock' then 
+            if type(val) == 'string' then al, ls = string.sub(val,1 ,2), string.sub(val,3)
+            else al = 'a'
+                for it, va in ipairs(val) do ll[it] = va end
+            end
         else
-            rawset(top, key, {})
-            parse_binds(val, rawget(top, key))
+            key = S(key:split('+')):map(string.lower)
+            if type(val) == 'string' then
+                rawset(top, key, val)
+            else
+                rawset(top, key, {})
+                parse_binds(val, rawget(top, key))
+            end
         end
     end
+    if ls and type(ls) == 'string' then binder_locks(al, ls) else binder_locks(al, unpack(ll)) end 
 end
 
 reset_crumbs = function()
@@ -153,7 +169,7 @@ update_crumbs = function(...)
         if ... then 
             breadCrumbs.name = ...
         else
-            local crumbs = L{}
+            local crumbs = T{}
             local stack_level
             if stack:length() == 1 then 
                 reset_crumbs()
@@ -186,23 +202,86 @@ toggle_crumbs = function(b)
     return settings.showCrumbs
 end
 
-setgkeys = function(act)
-    --windower.send_command('exec clear_all.txt') -- resets all 54 gkeys to ''
-    -- damnit the problem is in the clearing of aliases... gotta come up with another method than exec
-    -- maybe store the current set in a table and clear them first then set the new ones??
+binder_process = function(act)--#binder
+    if act == 'StackChange' then 
+        alocks:clear()
+    end
     
-    --log('setgkeys called', act) --#test
-
     for key, val in pairs(current) do
-        if key:tostring():find('%a%d') then 
-            --[[
-            log(key, type(val), val) --#test
-            windower.send_command('input /echo sending this command: ' .. val)
-            windower.send_command('alias g11_m3g18 input /echo this sucks')
-            windower.send_command(val)
-            --]]
+        key = key:tostring():slice(2,-2)
+        if key:find('%a%d') then 
+            binder_preset(key)
+            binder_set(key, val)
         end
     end
+    binder_postset()
+end
+
+binder_stack = function(act,bkey)--#binder
+    if act == 'append' then bstack:append(bkey) end
+    if act == 'delete' then 
+        windower.send_command('alias ' .. settings.binder.prefix .. bkey .. '')
+        bstack:delete(bkey) 
+    end
+end
+
+binder_preset = function(key)--#binder
+    -- checks for a lock on that alias and if no lock, removes from bstack, then sets unlocked to blank and returns true
+    if bstack:contains(key) and plocks:contains(key) then
+        if settings.VerboseLevel  < 2 then
+            log('Lock detected: ' .. key .. ' not unsetset because it is locked.')
+        end
+        return false
+    elseif bstack:contains(key) and not plocks:contains(key) then
+        binder_stack('delete')
+    end
+    
+    return true
+end
+
+binder_set = function(k, a)
+    local ret
+    alocks:append(k)
+    if plocks:contains(k) then ret = false
+    else windower.send_command('alias ' .. settings.binder.prefix .. k .. ' ' .. a)
+        ret = true
+    end
+    return ret
+end
+
+
+binder_postset = function()
+    return binder_clearset()
+end
+
+-- I can't remember why I added the locks arg. Do you know why?
+binder_clearset = function(locks, aset)--#binder
+    local aset = aset or settings.binder.activeset
+    local locks = locks or T{}:extend(alocks):extend(plocks)
+    aset:map(function(a) 
+        if not locks:contains(a) then
+            return windower.send_command('alias ' .. settings.binder.prefix .. a .. ' ;') 
+        end 
+    end)
+end
+
+binder_locks = function(action, ...)
+    local locklist = T{...}
+    local res, act = '', string.match(action,'[adl]') and action or 'a'
+    
+    if not string.match(action,'[adl]') then locklist:append(action) end
+    
+    if act == 'l' then res = res .. 'Alias Locks: ' .. plocks:concat(', ')
+    elseif act == 'a' then plocks:extend(locklist)
+        res = res .. 'Locking successful.'
+    elseif act == 'd' then 
+        for _, v in pairs(locklist) do
+            repeat until not plocks:delete(v)
+        end
+        res = res .. 'Unlocking successful.'
+    end
+    if settings.VerboseLevel < 2 and act ~= 'l' then res = false end
+    return res
 end
 
 windower.register_event('load', 'login', 'job change', 'logout', function()
@@ -213,7 +292,7 @@ windower.register_event('load', 'login', 'job change', 'logout', function()
     --if not player then breadCrumbs:hide() end
     if player then
         update_crumbs()
-        for filepath in L{
+        for filepath in T{
             {path = 'name_main_sub.lua',    format = '%s\'s %s/%s'},
             {path = 'name_main.lua',        format = '%s\'s %s'},
             {path = 'name.lua',             format = '%s\'s'},
@@ -391,7 +470,7 @@ end)
 
 windower.register_event('addon command', function(command, ...)
     command = command and command:lower() or 'help'
-    local args = L{...}
+    local args = T{...}
     if command == 'reset' then
         reset()
 
@@ -415,6 +494,10 @@ windower.register_event('addon command', function(command, ...)
     elseif command == 's' then
         toggle_crumbs(true)
         
+    elseif command == 'l' then
+        local mes = binder_locks(args:unpack())
+        if mes then log(mes) end
+        
     elseif command == 'set' then
         if args[1] == 'xy' then breadCrumbs:pos(args[2]:number(),args[3]:number())
         elseif args[1] == 'x' then breadCrumbs:pos_x(args[2]:number())
@@ -423,12 +506,27 @@ windower.register_event('addon command', function(command, ...)
         settings:save()
     elseif command == 'p' then
         if args[1] == 'current' then T(current):vprint(true)
+        elseif args[1] == 'plocks' then T(plocks):vprint(true)
         --elseif args[1] ~= nil then T(current).args[1]:vprint(true)
         end
     end
     update_crumbs()
     
 end)
+--[=[ Task List
+*) Add locking from loaded files
+--) in parse_binds trap for ['lock'] key
+----) if type == string then binder_locks(val)
+----) elseif type == table 
+*) Add locking of macros
+*) Add textbox for locks
+*) Add textbox for macros/aliases
+*) possibly rewrite for metatables and environments
+*) add macros/aliases from console to specific binds tables
+-- *) export current binds or new binds
+-- --) create include files and if exist append
+*) clean up duplicate entries in locks
+--]=]
 
 --[[
 Copyright © 2014, Windower

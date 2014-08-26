@@ -1,297 +1,154 @@
 _addon.author = 'Arcon'
-_addon.version = '2.2.0.0'
+_addon.version = '2.5.2.1'
 _addon.language = 'English'
 _addon.command = 'yush'
 
-require('luau')
-text = require('texts')
+do 
+    require('logger')
+    require('strings')
+    require('tables')
+    require('lists')
+    require('sets')
+    require('maths')
+    require('functions')
 
-_innerG = {_binds={}}
-for k, v in pairs(_G) do
-    rawset(_innerG, k, v)
+    collectgarbage()
 end
-_innerG._innerG = nil
-_innerG._G = _innerG
+libs = {}
+libs.config = require ('config')
+libs.text = require('texts')
 
-_innerG.include = function(path)
-    local full_path = windower.addon_path .. 'data/' .. path
-
-    local file = loadfile(full_path)
-    if not file and settings.VerboseLevel > 0 then
-        warning('Include file %s not found.':format(path))
-        return
+function yush_set_env(action)
+    if action == 'job change' and _innerG then 
+        _innerG._binds = {} 
+        return 
     end
-
-    setfenv(file, _innerG)
-    file()
-end
-
-setmetatable(_innerG, {__index = function(g, k)
-    local t = rawget(rawget(g, '_binds'), k)
-    if not t then
-        t = {}
-        rawset(rawget(g, '_binds'), k, t)
-    end
-    return t
-end, __newindex = function(g, k, v)
-    local t = rawget(rawget(g, '_binds'), k)
-    if t and type(v) == 'table' then
-        for k, v in pairs(v) do
-            t[k] = v
-        end
-    else
-        rawset(rawget(g, '_binds'), k, v)
-    end
-end})
-
-defaults = {}
-defaults.ResetKey = '`'
-defaults.BackKey = 'backspace'
-defaults.binder = {}
-defaults.binder.prefix = 'g11_'
-defaults.binder.activeset = T{'m1g1','m1g2','m1g3','m1g4','m1g5','m1g6','m1g7','m1g8','m1g9','m1g10','m1g11','m1g12','m1g13','m1g14','m1g15','m1g16','m1g17','m1g18',
-		'm2g1','m2g2','m2g3','m2g4','m2g5','m2g6','m2g7','m2g8','m2g9','m2g10','m2g11','m2g12','m2g13','m2g14','m2g15','m2g16','m2g17','m2g18',
-		'm3g1','m3g2','m3g3','m3g4','m3g5','m3g6','m3g7','m3g8','m3g9','m3g10','m3g11','m3g12','m3g13','m3g14','m3g15','m3g16','m3g17','m3g18'}
-defaults.VerboseLevel = 2  -- controls what messages to print. 0 = none, 1 = mostly just error messages, 2 = normal info, 3 = debug
-defaults.showCrumbs = true
-defaults.breadCrumbs = {}
-defaults.breadCrumbs.pos = {}
-defaults.breadCrumbs.pos.x = 0
-defaults.breadCrumbs.pos.y = 0
-defaults.breadCrumbs.text = {}
-defaults.breadCrumbs.text.font = 'arial'
-defaults.breadCrumbs.text.size = 10
-defaults.breadCrumbs.text.alpha = 255
-defaults.breadCrumbs.text.red = 255
-defaults.breadCrumbs.text.green = 255
-defaults.breadCrumbs.text.blue = 255
-defaults.breadCrumbs.bg = {}
-defaults.breadCrumbs.bg.alpha = 192
-defaults.breadCrumbs.bg.red = 0
-defaults.breadCrumbs.bg.green = 0
-defaults.breadCrumbs.bg.blue = 0
-defaults.breadCrumbs.padding = 5
-defaults.breadCrumbs.name = nil
-
-settings = config.load(defaults)
-
-crumbs_base_string = T{'${name|-}',}:concat('\n')
-breadCrumbs = text.new(crumbs_base_string, settings.breadCrumbs, settings)
-
-binds = {}
-current = binds
-stack = T{binds}
-keys = S{}
-bstack = T{} --#binder binder stack from current
-alocks = T{} --#binder locks aliases in current
-plocks = T{'m3g17',} --#binder player specified locks 
-lock_actions = L{'a','d','l',}
-itest = 1
-
-reset = function()
-    current = binds
-    while stack:length() >1 do stack:remove() end
-    reset_crumbs()
-    binder_process('StackChange')
-end
-
-back = function()
-    if stack:length() == 1 then
-        current = binds
-    else
-        current = stack[stack:length() - 1]
-        stack:remove()
-    end
-    update_crumbs()
-    binder_process('StackChange')
-end
-
-check = function()
-    for key, val in pairs(current) do
-        if key <= keys then
-            if type(val) == 'string' then
-                if val == 'printset' then
-                    table.vprint(T(stack[stack:length()]))
-                else
-                    windower.send_command(val)
-                end
-            else
-                current = val
-                stack:append(current)
-                binder_process('StackChange')
-            end
-            return true
-        end
-        
-    end
+    if _innerG then return end
     
-    return false
-end
+    _innerG = {_binds={}}
+    for k, v in pairs(_G) do
+        if k ~= 'global' then
+            rawset(_innerG, k, v)
+        end
+    end
+    _innerG._innerG = nil
+    _innerG._G = _innerG
 
-parse_binds = function(fbinds, top)
-  if not T(top):empty() then T(top):vprint(true) end
-    top = top or binds
-    local ll, ls, la = {}
-    
-    for key, val in pairs(fbinds) do
-        if key == 'lock' then 
-            if type(val) == 'string' then al, ls = string.sub(val,1 ,2), string.sub(val,3)
-            else al = 'a'
-                for it, va in ipairs(val) do ll[it] = va end
+    _innerG.include = function(path)
+        local full_path = windower.addon_path .. 'data/' .. path
+
+        local file = loadfile(full_path)
+        if not file and settings.VerboseLevel > 0 then
+            warning('Include file %s not found.':format(path))
+            return
+        end
+
+        setfenv(file, _innerG)
+        file()
+    end
+
+    setmetatable(_innerG, {__index = function(g, k)
+        local t = rawget(rawget(g, '_binds'), k)
+        if not t then
+            t = {}
+            rawset(rawget(g, '_binds'), k, t)
+        end
+        return t
+    end, __newindex = function(g, k, v)
+        local t = rawget(rawget(g, '_binds'), k)
+        if t and type(v) == 'table' then
+            for k, v in pairs(v) do
+                t[k] = v
             end
         else
-            key = S(key:split('+')):map(string.lower)
-            if type(val) == 'string' then
-                rawset(top, key, val)
-            else
-                rawset(top, key, {})
-                parse_binds(val, rawget(top, key))
-            end
+            rawset(rawget(g, '_binds'), k, v)
         end
-    end
-    if ls and type(ls) == 'string' then binder_locks(al, ls) else binder_locks(al, unpack(ll)) end 
-end
+    end})
+end 
 
-reset_crumbs = function()
-    for key, val in pairs(current) do
-        if key:find('name') then 
-            breadCrumbs.name = val
-            return 
-        end
-    end
-end
+-- Load Defaults
+function load_defaults()
+    -- Do not load anything if we are not logged in
+    if (not windower.ffxi.get_info().logged_in) then return end
 
-update_crumbs = function(...)
-    if breadCrumbs == nil then -- check if breadCrumbs was destroyed on logout
-        breadCrumbs = text.new(crumbs_base_string, settings.breadCrumbs, settings)
-    end
-    if settings.showCrumbs == true then
-        if ... then 
-            breadCrumbs.name = ...
-        else
-            local crumbs = T{}
-            local stack_level
-            if stack:length() == 1 then 
-                reset_crumbs()
-            else
-                stack_level = stack:length()
-                for k = 1, stack_level do 
-                    for key, val in pairs(stack[k]) do
-                        if key:find('name') then 
-                            crumbs:append(val)
-                        end
-                    end
-                end
-                breadCrumbs.name = crumbs:concat(' : ')
-             end
-            
-        end
-        breadCrumbs:show()
-    else
-        breadCrumbs:hide()
-    end
-end
+    -- Skip if defaults have been loaded already
+    if (global) then return end
 
-toggle_crumbs = function(b)
-    if b ~= nil then
-        settings.showCrumbs = b
-    else
-        settings.showCrumbs = not settings.showCrumbs
-    end
+    global = {}
+    global.defaults = {}
+    global.defaults.ResetKey = '`'
+    global.defaults.BackKey = 'backspace'
+    global.defaults.binder = {}
+    global.defaults.binder.prefix = 'g11_'
+    global.defaults.binder.activeset = T{'m1g1','m1g2','m1g3','m1g4','m1g5','m1g6','m1g7','m1g8','m1g9','m1g10','m1g11','m1g12','m1g13','m1g14','m1g15','m1g16','m1g17','m1g18',
+            'm2g1','m2g2','m2g3','m2g4','m2g5','m2g6','m2g7','m2g8','m2g9','m2g10','m2g11','m2g12','m2g13','m2g14','m2g15','m2g16','m2g17','m2g18',
+            'm3g1','m3g2','m3g3','m3g4','m3g5','m3g6','m3g7','m3g8','m3g9','m3g10','m3g11','m3g12','m3g13','m3g14','m3g15','m3g16','m3g17','m3g18'}
+    global.defaults.VerboseLevel = 2  -- controls what messages to print. 0 = none, 1 = mostly just error messages, 2 = normal info, 3 = debug
+    global.defaults.showCrumbs = true
+    global.defaults.breadCrumbs = {}
+    global.defaults.breadCrumbs.pos = {}
+    global.defaults.breadCrumbs.pos.x = (windower.get_windower_settings().ui_x_res / 2) - 50
+    global.defaults.breadCrumbs.pos.y = 0
+    global.defaults.breadCrumbs.text = {}
+    global.defaults.breadCrumbs.text.font = 'arial'
+    global.defaults.breadCrumbs.text.size = 10
+    global.defaults.breadCrumbs.text.alpha = 255
+    global.defaults.breadCrumbs.text.red = 255
+    global.defaults.breadCrumbs.text.green = 255
+    global.defaults.breadCrumbs.text.blue = 255
+    global.defaults.breadCrumbs.bg = {}
+    global.defaults.breadCrumbs.bg.alpha = 192
+    global.defaults.breadCrumbs.bg.red = 0
+    global.defaults.breadCrumbs.bg.green = 0
+    global.defaults.breadCrumbs.bg.blue = 0
+    global.defaults.breadCrumbs.padding = 5
+    global.defaults.breadCrumbs.name = nil
+    global.crumbs_base_string = T{'${name|-}',}:concat('\n')
     
-    return settings.showCrumbs
-end
-
-binder_process = function(act)--#binder
-    if act == 'StackChange' then 
-        alocks:clear()
-    end
+    global.player_name = windower.ffxi.get_player().name
+    global.settings_file = "data/settings/%s.xml":format(global.player_name)
     
-    for key, val in pairs(current) do
-        key = key:tostring():slice(2,-2)
-        if key:find('%a%d') then 
-            binder_preset(key)
-            binder_set(key, val)
-        end
-    end
-    binder_postset()
-end
-
-binder_stack = function(act,bkey)--#binder
-    if act == 'append' then bstack:append(bkey) end
-    if act == 'delete' then 
-        windower.send_command('alias ' .. settings.binder.prefix .. bkey .. '')
-        bstack:delete(bkey) 
-    end
-end
-
-binder_preset = function(key)--#binder
-    -- checks for a lock on that alias and if no lock, removes from bstack, then sets unlocked to blank and returns true
-    if bstack:contains(key) and plocks:contains(key) then
-        if settings.VerboseLevel  < 2 then
-            log('Lock detected: ' .. key .. ' not unsetset because it is locked.')
-        end
-        return false
-    elseif bstack:contains(key) and not plocks:contains(key) then
-        binder_stack('delete')
-    end
+    -- Load previous settings
+    global.settings = libs.config.load(global.settings_file, global.defaults)
     
-    return true
-end
-
-binder_set = function(k, a)
-    local ret
-    alocks:append(k)
-    if plocks:contains(k) then ret = false
-    else windower.send_command('alias ' .. settings.binder.prefix .. k .. ' ' .. a)
-        ret = true
-    end
-    return ret
-end
-
-
-binder_postset = function()
-    return binder_clearset()
-end
-
--- I can't remember why I added the locks arg. Do you know why?
-binder_clearset = function(locks, aset)--#binder
-    local aset = aset or settings.binder.activeset
-    local locks = locks or T{}:extend(alocks):extend(plocks)
-    aset:map(function(a) 
-        if not locks:contains(a) then
-            return windower.send_command('alias ' .. settings.binder.prefix .. a .. ' ;') 
-        end 
-    end)
-end
-
-binder_locks = function(action, ...)
-    local locklist = T{...}
-    local res, act = '', string.match(action,'[adl]') and action or 'a'
+    global.breadCrumbs = libs.text.new (global.crumbs_base_string, global.settings.breadCrumbs)
+ 
+--    global.enable_mode = true
+    global.yush = {}
+    global.yush.binds = T{}
+    global.yush.current = binds
+    global.yush.stack = T{global.yush.binds}
+    global.yush.keys = S{}
+    global.binder = {}
+    global.binder.bmenus = {}  --#binder table of [menu names] = table reference
+    global.binder.bstack = T{} --#binder binder stack from current
+    global.binder.alocks = T{} --#binder locks aliases in current
+    global.binder.plocks = T{} --#binder player specified locks 
+    global.binder.lock_actions = L{'la','ld','ll','las','lds',}
+    -- iterator
+    global.itest = 1
     
-    if not string.match(action,'[adl]') then locklist:append(action) end
-    
-    if act == 'l' then res = res .. 'Alias Locks: ' .. plocks:concat(', ')
-    elseif act == 'a' then plocks:extend(locklist)
-        res = res .. 'Locking successful.'
-    elseif act == 'd' then 
-        for _, v in pairs(locklist) do
-            repeat until not plocks:delete(v)
-        end
-        res = res .. 'Unlocking successful.'
-    end
-    if settings.VerboseLevel < 2 and act ~= 'l' then res = false end
-    return res
+    update_area_info()
+    yush_set_env()
+    yush_initialize()
 end
 
-windower.register_event('load', 'login', 'job change', 'logout', function()
+-- update area location
+function update_area_info()
+    -- Load defaults if needed
+    if (not global) then load_defaults() return end
+    --update_settings() might use later
+end
+
+function yush_initialize()
+    -- Do not load anything if we are not logged in
+    if (not windower.ffxi.get_info().logged_in) then return end
+    
     local player = windower.ffxi.get_player()
     local file, path
     local basepath = windower.addon_path .. 'data/'
     
-    --if not player then breadCrumbs:hide() end
     if player then
-        update_crumbs()
         for filepath in T{
             {path = 'name_main_sub.lua',    format = '%s\'s %s/%s'},
             {path = 'name_main.lua',        format = '%s\'s %s'},
@@ -311,30 +168,270 @@ windower.register_event('load', 'login', 'job change', 'logout', function()
     end
     
     if file then
+        rawset(_innerG, '_binds', {})
         setfenv(file, _innerG)
         parse_binds(file())
         reset()
-        if path == 'Binds' and settings.VerboseLevel  < 2 then
+        if path == 'Binds' and global.settings.VerboseLevel  < 2 then
             -- don't print('Yush: Loaded ' .. path .. ' Lua file')
         else
             print('Yush: Loaded ' .. path .. ' Lua file')
         end
     elseif player then
-        breadCrumbs:hide()
-        if settings.VerboseLevel > 0 then
+        global.breadCrumbs:hide()
+        if global.settings.VerboseLevel > 0 then
             print('Yush: No matching file found for %s (%s%s)':format(player.name, player.main_job, player.sub_job and '/' .. player.sub_job or ''))
         end
     end
-end)
+end
 
-windower.register_event('login', function()
-    --breadCrumbs:destroy()
-    --breadCrumbs.name = ''
-    --breadCrumbs = nil
+function logout()
+    rawset(_innerG, '_binds', nil)
+    rawset(_G, '_innerG', nil)
+    if (global.breadCrumbs) then
+        global.breadCrumbs:hide()
+        global.breadCrumbs:destroy()
+    end
+    rawset(_G, 'global', nil)
+    collectgarbage()
+end
+
+-- Save settings
+function save_settings()
+    update_settings()
+    libs.config.save(global.settings, 'all')
+end
+
+function test_loop ()
+    print(itest)
+    itest = itest +1
+end
+
+--#yush
+reset = function()
+    global.yush.current = global.yush.binds
+    while global.yush.stack:length() >1 do global.yush.stack:remove() end
+    reset_crumbs()
+    binder_process('StackChange')
+end
+
+back = function()
+    if global.yush.stack:length() == 1 then
+        global.yush.current = global.yush.binds
+    else
+        global.yush.current = global.yush.stack[global.yush.stack:length() - 1]
+        global.yush.stack:remove()
+    end
+    update_crumbs()
+    binder_process('StackChange')
+end
+
+check = function()
+    for key, val in pairs(global.yush.current) do
+        if key <= global.yush.keys then
+            if type(val) == 'string' then
+                if val == 'printset' then
+                    table.vprint(global.yush.stack[global.yush.stack:length()])
+                else
+                    windower.send_command(val)
+                end
+            else
+                global.yush.current = val
+                global.yush.stack:append(global.yush.current)
+                binder_process('StackChange')
+            end
+            return true
+        end
+        
+    end
     
-    --**on login it uses the last character's top(stack?)
-    windower.send_command('lua r yush')
-end)
+    return false
+end
+
+parse_binds = function(fbinds, top)
+    top = top or global.yush.binds
+    
+    for key, val in pairs(fbinds) do
+        if string.find(key,'%a%d') and type(val) == 'table' then
+            if val['menu'] then
+                key = key .. '+' .. val['menu']
+            else
+                warning('You need to add a menu name to the ' .. key .. ' macro table.')
+            end
+        end
+            
+        key = S(key:split('+')):map(string.lower)
+            
+        if type(val) == 'string' then
+                rawset(top, key, val)
+        else
+                rawset(top, key, {})
+                parse_binds(val, rawget(top, key))
+        end
+    end
+end
+
+reset_crumbs = function()
+    if not global.breadCrumbs then
+        global.breadCrumbs = libs.text.new (global.crumbs_base_string, global.settings.breadCrumbs)
+    end
+    
+    for key, val in pairs(global.yush.current) do
+        if key:find('name') then 
+            global.breadCrumbs.name = val
+            return 
+        end
+    end
+end
+
+update_crumbs = function(...)
+    if global.settings.showCrumbs == true then
+        if ... then 
+            global.breadCrumbs.name = ...
+        else
+            local crumbs = T{}
+            local stack_level
+            if global.yush.stack:length() == 1 then 
+                reset_crumbs()
+            else
+                stack_level = global.yush.stack:length()
+                for k = 1, stack_level do 
+                    for key, val in pairs(global.yush.stack[k]) do
+                        if key:find('name') then 
+                            crumbs:append(val)
+                        end
+                    end
+                end
+                global.breadCrumbs.name = crumbs:concat(' : ')
+             end
+            
+        end
+        global.breadCrumbs:show()
+    else
+        global.breadCrumbs:hide()
+    end
+end
+
+toggle_crumbs = function(b)
+    if b ~= nil then
+        global.settings.showCrumbs = b
+    else
+        global.settings.showCrumbs = not global.settings.showCrumbs
+    end
+    
+    return global.settings.showCrumbs
+end
+
+binder_process = function(act)--#binder
+    if act == 'StackChange' then 
+        global.binder.alocks:clear()
+    end
+    
+    for key, val in pairs(global.yush.current) do
+        local bkey 
+        bkey = key:tostring():slice(2,-2)
+        if bkey:find('%a%d') then 
+            binder_preset(bkey)
+            binder_set(bkey, val)
+        end
+    end
+    binder_postset()
+end
+
+binder_stack = function(act,bkey)--#binder
+    if act == 'append' then global.binder.bstack:append(bkey) end
+    if act == 'delete' then 
+        windower.send_command('alias ' .. global.settings.binder.prefix .. bkey .. '')
+        global.binder.bstack:delete(bkey) 
+    end
+end
+
+binder_preset = function(key)--#binder
+    -- checks for a lock on that alias and if no lock, removes from bstack, then sets unlocked to blank and returns true
+    if global.binder.bstack:contains(key) and global.binder.plocks:contains(key) then
+        if global.settings.VerboseLevel  < 2 then
+            log('Lock detected: ' .. key .. ' not unsetset because it is locked.')
+        end
+        return false
+    elseif global.binder.bstack:contains(key) and not global.binder.plocks:contains(key) then
+        binder_stack('delete')
+    end
+    
+    return true
+end
+
+binder_set = function(k, a)
+    local ret
+    
+    if global.binder.plocks:contains(k) then ret = false
+    elseif type(a) == 'table' then
+        local menu_set, key, menu = {}
+        menu_set = string.split(k,', ')
+        key = menu_set[1]:find('%a%d') and menu_set[1] or menu_set[2]
+        menu = not menu_set[1]:find('%a%d') and menu_set[1] or menu_set[2]
+        global.binder.alocks:append(key)
+        
+        windower.send_command('alias ' .. global.settings.binder.prefix .. key .. ' yush press ' .. key .. '+' .. menu)
+        ret = true
+    elseif a:startswith('lock ') then 
+        a = a:slice(6)
+        windower.send_command('alias ' .. global.settings.binder.prefix .. k .. ' ' .. a)
+        global.binder.alocks:append(k)
+        global.binder.plocks:append(k)
+        
+        ret = true
+    else windower.send_command('alias ' .. global.settings.binder.prefix .. k .. ' ' .. a)
+        global.binder.alocks:append(k)
+        ret = true
+    end
+    return ret
+end
+
+
+binder_postset = function()
+    return binder_clearset()
+end
+
+-- I can't remember why I added the locks arg. Do you know why?
+binder_clearset = function(locks, aset)--#binder
+    local aset = aset or global.settings.binder.activeset
+    local locks = locks or T{}:extend(global.binder.alocks):extend(global.binder.plocks)
+    aset:map(function(a) 
+        if not locks:contains(a) then
+            return windower.send_command('alias ' .. global.settings.binder.prefix .. a .. ' ;') 
+        end 
+    end)
+end
+
+binder_locks = function(action, ...)
+    local locklist = T{...}
+    local res = ''
+    local silent = false
+    local act = action or 'la'
+    
+    if act:endswith('s') then silent = true end
+    if act:match('l[adl]') then act = act:sub(1,3) end
+    
+    if not string.match(act,'l[adl]') then 
+        act = 'la'
+        global.binder.locklist:append(action) end
+    
+    if act == 'll' then res = res .. 'Alias Locks: ' .. global.binder.plocks:concat(', ')
+    elseif act == 'la' then global.binder.plocks:merge(locklist)
+        res = res .. 'Locking successful.'
+    elseif act == 'ld' then 
+        for _, v in pairs(locklist) do
+            repeat until not global.binder.plocks:delete(v)
+        end
+        res = res .. 'Unlocking successful.'
+    end
+    if global.settings.VerboseLevel < 2 and act ~= 'll' then 
+        res = false 
+    else
+        res = not silent and res
+    end
+    return res
+end
 
 dikt = {    -- Har har
     [1] = 'esc',
@@ -437,28 +534,30 @@ dikt = {    -- Har har
     [220] = 'rwin',
     [221] = 'apps',
 }
+function yush_event_keyboard (dik, down)
+    -- Do not load anything if we are not logged in
+    if (not windower.ffxi.get_info().logged_in) then return end
 
-windower.register_event('keyboard', function(dik, down)
     local key = dikt[dik]
     
-    if settings.VerboseLevel >= 3 then notice('pressed keys =', keys) end
+    if global.settings.VerboseLevel >= 3 then notice('pressed keys =', keys) end
     if not key then
         return
     end
 
     if not down then
-        keys:remove(key)
+        global.yush.keys:remove(key)
         return
     end
 
-    if not keys:contains(key) then
-        keys:add(key)
+    if not global.yush.keys:contains(key) then
+        global.yush.keys:add(key)
 
         if not windower.ffxi.get_info().chat_open then
-            if key == settings.ResetKey then
+            if key == global.settings.ResetKey then
                 reset()
                 return true
-            elseif key == settings.BackKey then
+            elseif key == global.settings.BackKey then
                 back()
                 return true
             end
@@ -466,21 +565,23 @@ windower.register_event('keyboard', function(dik, down)
 
         return check(), update_crumbs()
     end
-end)
+end
 
-windower.register_event('addon command', function(command, ...)
+function yush_commands (command, ...)
     command = command and command:lower() or 'help'
     local args = T{...}
     if command == 'reset' then
+        --log('reset')
         reset()
 
     elseif command == 'back' then
+        --log('back')
         back()
 
     elseif command == 'press' then
-        keys = keys + S(args[1]:split('+')):map(string.lower)
+        global.yush.keys = global.yush.keys + S(args[1]:split('+')):map(string.lower)
         check()
-        keys = keys - S(args[1]:split('+')):map(string.lower)
+        global.yush.keys = global.yush.keys - S(args[1]:split('+')):map(string.lower)
         
     elseif command == 'r' then
         windower.send_command('lua r yush')
@@ -488,44 +589,62 @@ windower.register_event('addon command', function(command, ...)
     elseif command == 'u' then
         windower.send_command('lua u yush')
     
-    elseif command == 'h' then
+    elseif command == 'h' then --hide crumbs
         toggle_crumbs(false)
     
-    elseif command == 's' then
+    elseif command == 's' then --show crumbs
         toggle_crumbs(true)
         
-    elseif command == 'l' then
-        local mes = binder_locks(args:unpack())
+    elseif global.binder.lock_actions:contains(command) then --locks
+        local mes = binder_locks(command, args:unpack())
         if mes then log(mes) end
         
     elseif command == 'set' then
-        if args[1] == 'xy' then breadCrumbs:pos(args[2]:number(),args[3]:number())
-        elseif args[1] == 'x' then breadCrumbs:pos_x(args[2]:number())
-        elseif args[1] == 'y' then breadCrumbs:pos_y(args[2]:number())
+        if args[1] == 'xy' then global.breadCrumbs:pos(args[2]:number(),args[3]:number())
+        elseif args[1] == 'x' then global.breadCrumbs:pos_x(args[2]:number())
+        elseif args[1] == 'y' then global.breadCrumbs:pos_y(args[2]:number())
         end
-        settings:save()
+        global.settings:save()
     elseif command == 'p' then
-        if args[1] == 'current' then T(current):vprint(true)
-        elseif args[1] == 'plocks' then T(plocks):vprint(true)
-        --elseif args[1] ~= nil then T(current).args[1]:vprint(true)
+        local outf, output, t, g, j
+        outf = T{['print'] = print, ['log'] = log, ['warning'] = warning, ['error'] = error, ['notice'] = notice,}
+        output = outf:containskey(args[#args]) and outf[args[#args]] or log
+        local t = rawget(_G,args[1])
+        local g = t and rawget(t, args[2]) or t
+        local j = g and rawget(g, args[3]) or g
+        for k, v in pairs(j) do
+            output('> ', k, ' > - < ', v)
         end
+    elseif command == 'pstack' then 
+        global.yush.stack:vprint(true)
+        log(type(global.yush.stack))
     end
     update_crumbs()
-    
-end)
+end
+
+windower.register_event('load', 'login', load_defaults)
+windower.register_event( 'job change', function() yush_set_env('job change') end)
+windower.register_event('logout', 'unload', logout)
+windower.register_event('keyboard', yush_event_keyboard)
+windower.register_event('addon command', yush_commands)
 --[=[ Task List
-*) Add locking from loaded files
---) in parse_binds trap for ['lock'] key
-----) if type == string then binder_locks(val)
-----) elseif type == table 
-*) Add locking of macros
-*) Add textbox for locks
-*) Add textbox for macros/aliases
-*) possibly rewrite for metatables and environments
-*) add macros/aliases from console to specific binds tables
--- *) export current binds or new binds
+[ ]) replace current alias identifiers with placeholder ident parts. ie... instead of (m1)(g)1 use (p)1(k)1 and a customizable
+        filter to replace based on settings.  This will allow for non-set specific includes.
+[ ]) figure out a better method for handling activesets (for alias clearing)
+[ ]) Add an ignorelock arguement to binder_locks() so aliases can be cleared on logout/unload
+[ ]) Add locking of macros
+[ ]) Add textbox for locks
+[ ]) Add textbox for macros/aliases
+[ ]) possibly rewrite for metatables and environments
+    ->) partial rewrite completed... don't know if it helped
+[ ]) add macros/aliases from console to specific binds tables
+-- [ ]) export current binds or new binds
 -- --) create include files and if exist append
-*) clean up duplicate entries in locks
+[x]) clean up duplicate entries in locks
+
+>> Notes
+*> Add locking from loaded files
+---> Removed this because the logic is flawed
 --]=]
 
 --[[

@@ -137,6 +137,17 @@ function table.append(t, val)
     return t;
 end
 
+-- Merges one table into another table discarding duplicates and ignoring keys.
+function table.merge(t, t_merge)
+    for _, v in pairs(t_merge) do
+        if not t:contains(v) then
+            t:append(v)
+        end
+    end
+    
+    return t
+end
+
 -- Appends an array table to the end of another array table.
 function table.extend(t, t_extend)
     if type(t_extend) ~= 'table' then

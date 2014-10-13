@@ -7,8 +7,8 @@ _addon.command = 'yuk'
 do 
     require('logger')
     require('strings')
-    require('tables')
-    require('lists') -- Modified version: lists.merge added
+    require('tables') -- Modified version: tables.merge added
+    require('lists') 
     require('sets')
     require('maths')
     require('functions')

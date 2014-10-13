@@ -1,6 +1,6 @@
-# Yush
+# Yuk
 
-A portable macro engine based on customizable Lua files. Triggers faster than in-game macros and allow a significantly higher number of key combinations.
+(This is branch of Arcon's Yush addon) A portable macro engine based on customizable Lua files. Triggers faster than in-game macros and allow a significantly higher number of key combinations.
 
 ### Usage
 

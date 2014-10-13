@@ -7,32 +7,38 @@ _libs.sets = true
 _libs.tables = _libs.tables or require('tables')
 _libs.functions = _libs.functions or require('functions')
 
-set = {}
+-- set is the table that will hold all the functions from the sets library, just the functions!
+-- set action part of the 'Set' class so to speak.
+set = {} 
 
 _meta = _meta or {}
+-- _meta.S is the 'class' definition table. It sets the rules for what to do first when lua comes across 
+-- a table of class 'Set'. _meta is a special lua specific table that is checked first whenever you access a table.
 _meta.S = {}
+-- S._index here is saying, "function(sometable, somekey) return rawget(checkthe'set'actiontable, forthis[key]) no[key]found? okrawgetfrom(normal'table'actions, this[key]) end"
 _meta.S.__index = function(s, k) return rawget(set, k) or rawget(table, k) end
 _meta.S.__class = 'Set'
 
+-- this is a global function called S and is not part of the set action table.
 function S(t)
     t = t or {}
-    if class(t) == 'Set' then
+    if class(t) == 'Set' then -- if it's already a Set class table, just return the table back to the assignment operation.  nothing to do.
         return t
     end
 
     local s = {}
 
-    if class(t) == 'List' then
+    if class(t) == 'List' then -- converts a List class into a Set class
         for _, val in ipairs(t) do
             s[val] = true
         end
     else
-        for _, val in pairs(t) do
+        for _, val in pairs(t) do -- any other table type is handled like this
             s[val] = true
         end
     end
 
-    return setmetatable(s, _meta.S)
+    return setmetatable(s, _meta.S) -- this gives the new Set table the __index function that checks for set actions first before normal table actions.
 end
 
 function set.empty(s)

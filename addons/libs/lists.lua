@@ -110,6 +110,7 @@ function list.remove(l, i)
     return res
 end
 
+-- Adds the contents of l2 to the end of l1 and returns l1.
 function list.extend(l1, l2)
     local n1 = l1.n
     local n2 = l2.n
@@ -121,6 +122,17 @@ function list.extend(l1, l2)
     return l1
 end
 
+-- Merges one list into another list discarding duplicates.
+function list.merge(l, l_merge)
+    for key = 1, l_merge.n do
+        if not l:contains(rawget(l, key)) then
+            l:append(rawget(l, key))
+        end
+    end
+    
+    return l
+end
+
 _meta.L.__add = function(l1, l2)
     return L{}:extend(l1):extend(l2)
 end
@@ -129,6 +141,17 @@ function list.contains(l, el)
     for key = 1, l.n do
         if rawget(l, key) == el then
             return true
+        end
+    end
+
+    return false
+end
+
+-- seaches the list for a val and returns the key if found, else false
+function list.find(l, val)
+    for key = 1, l.n do
+        if rawget(l, key) == val then
+            return key
         end
     end
 

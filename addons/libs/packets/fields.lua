@@ -11,8 +11,8 @@ require('sets')
 bit = require('bit')
 
 local fields = {}
-fields.outgoing = {_mult = {}}
-fields.incoming = {_mult = {}}
+fields.outgoing = {_func = {}}
+fields.incoming = {_func = {}}
 
 -- String decoding definitions
 local ls_name_msg = T('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ':split())
@@ -304,8 +304,10 @@ enums['action'] = {
     [0x09] = 'Job ability usage',
     [0x0C] = 'Assist',
     [0x0D] = 'Reraise dialogue',
+    [0x0E] = 'Cast Fishing Rod',
     [0x0F] = 'Switch target',
     [0x10] = 'Ranged attack',
+    [0x12] = 'Dismount Chocobo',
     [0x14] = 'Zoning/Appear', -- I think, the resource for this is ambiguous.
     [0x19] = 'Monsterskill',
 }
@@ -443,6 +445,48 @@ fields.outgoing[0x050] = L{
     {ctype='data[1]',           label='_junk1'}                                 -- 07
 }
 
+types.equipset = L{
+    {ctype='unsigned char',     label='Inventory Index',    fn=invp+{0x0A}},    -- 00
+    {ctype='unsigned char',     label='Equipment Slot',     fn=slot},           -- 01
+    {ctype='unsigned char',     label='Bag',                fn=bag},            -- 02
+    {ctype='unsigned char',     label='_padding1'},                             -- 03
+}
+
+fields.outgoing._func[0x051] = {}
+fields.outgoing._func[0x051].base = L{
+    {ctype='unsigned char',     label='Count'},                                 -- 04
+    {ctype='unsigned char[3]',  label='_unknown1'},                             -- 05   Same as _unknown1 in outgoing 0x052
+}
+
+-- Equipset
+fields.outgoing[0x051] = function(data)
+    local count = data:byte(5, 5)
+
+    return fields.outgoing._func[0x051].base + L{
+        -- Only the number given in Count will be properly populated, the rest is junk
+        {ref=types.equipset,        count=count},                                   -- 08
+        {ctype='data[%u]':format((16 - count) * 4), label='_junk1'},                -- 08 + 4 * count
+    }
+end
+
+types.equipset_build = L{
+    {ctype='boolbit',           label='Active'},                                -- 00
+    {ctype='bit',               label='_unknown1'},                             -- 00
+    {ctype='bit[6]',            label='Bag',                fn=bag},            -- 00
+    {ctype='unsigned char',     label='Inventory Index'},                       -- 01
+    {ctype='unsigned short',    label='Item',               fn=item},           -- 02
+}
+
+-- Equipset Build
+fields.outgoing[0x052] = L{
+    -- First 8 bytes are for the newly changed item
+    {ctype='unsigned char',     label='New Equipment Slot', fn=slot},           -- 04
+    {ctype='unsigned char[3]',  label='_unknown1'},                             -- 05
+    {ref=types.equipset_build,  count=1},                                       -- 08
+    -- The next 16 are the entire current equipset, excluding the newly changed item
+    {ref=types.equipset_build,  lookup={res.slots, 0x00},   count=0x10},        -- 0C
+}
+
 -- Conquest
 fields.outgoing[0x05A] = L{
 }
@@ -453,11 +497,10 @@ fields.outgoing[0x05B] = L{
     {ctype='unsigned short',    label='Option Index'},                          -- 08
     {ctype='unsigned short',    label='_unknown1'},                             -- 0A
     {ctype='unsigned short',    label='Target Index',       fn=index},          -- 0C
-    {ctype='bool',              label='Begin dialogue'},                        -- 0E   Seems to be 1 when initiating conversion, 0 otherwise, unsure
+    {ctype='bool',              label='Automated Message'},                     -- 0E   1 if the response packet is automatically generated, 0 if it was selected by you
     {ctype='unsigned char',     label='_unknown2'},                             -- 0F
     {ctype='unsigned short',    label='Zone',               fn=zone},           -- 10
-    {ctype='unsigned char',     label='_unknown3'},                             -- 12   Might be a short, some parameter for the dialogue option, sometimes related to Index (Index + 0x5C0)
-    {ctype='unsigned char',     label='_unknown4'},                             -- 13
+    {ctype='unsigned short',    label='Menu ID'},                               -- 12
 }
 
 -- Zone request
@@ -520,6 +563,10 @@ fields.outgoing[0x077] = L{
     {ctype='char[16]',          label='Target Name'},                           -- 04   Name of the person to give leader to
     {ctype='unsigned short',    label='Alliance'},                              -- 14   02 01 for alliance, 00 00 for party
     {ctype='unsigned short',    label='_unknown1'},                             -- 16
+}
+
+-- Party list request (4 byte packet)
+fields.outgoing[0x078] = L{
 }
 
 -- NPC buy
@@ -1208,9 +1255,9 @@ fields.incoming[0x027] = L{
 }
 
 -- Action
-fields.incoming._mult[0x028] = {}
+fields.incoming._func[0x028] = {}
 fields.incoming[0x028] = function(data)
-    return fields.incoming._mult[0x028].base
+    return fields.incoming._func[0x028].base
 end
 
 enums.action_in = {
@@ -1219,7 +1266,7 @@ enums.action_in = {
     [8] = 'Casting start',
 }
 
-fields.incoming._mult[0x028].base = L{
+fields.incoming._func[0x028].base = L{
     {ctype='unsigned char',     label='Size'},                                  -- 04
     {ctype='unsigned int',      label='Actor',              fn=id},             -- 05
     {ctype='bit[10]',           label='Target Count'},                          -- 09
@@ -1240,6 +1287,62 @@ fields.incoming[0x029] = L{
     {ctype='unsigned short',    label='Message'},                               -- 18
     {ctype='unsigned short',    label='_unknown1'},                             -- 1A
 }
+
+
+--[[ 0x2A can be triggered by knealing in the right areas while in the possession of a VWNM KI:
+    Field1 will be lights level:
+    0 = 'Tier 1', -- faintly/feebly depending on whether it's outside of inside Abyssea
+    1 = 'Tier 2', -- softly
+    2 = 'Tier 3', -- solidly. Highest Tier in Abyssea
+    3 = 'Tier 4', --- strongly
+    4 = 'Tier 5', -- very strongly.  Unused currently
+    5 = 'Tier 6', --- furiously.  Unused currently
+    - But if there are no mobs left in area, or no mobs nearby, field1 will be the KeyItem#
+    1253 = 'Clear Abyssite'
+	1254 = 'Colorful Abyssite'
+	1564 = 'Clear Demilune Abyssite'
+	etc.
+
+    Field2 will be direction:
+    0 = 'East'
+    1 = 'Southeast'
+    2 = 'South'
+    3 = 'Southwest'
+    4 = 'West'
+    5 = 'Northwest'
+    6 = 'North'
+    7 = 'Northeast'
+
+    Field3 will be distance. When there are no mobs, this value is set to 300000
+
+    Field4 will be KI# of the abyssite used. Ex:
+    1253 = 'Clear Abyssite'
+	1254 = 'Colorful Abyssite'
+	1564 = 'Clear Demilune Abyssite'
+	etc.
+]]
+
+--[[  0x2A can also be triggered by buying/disposing of a VWNM KI from an NPC:
+      Index/ID field will be those of the NPC
+      Field1 will be 1000 (gil) when acquiring in Jueno, 300 (cruor) when acquiring in Abyssea
+      Field2 will be the KI# acquired
+      Fields are used slighly different when dropping the KI using the NPC.
+]]
+
+--[[  0x2A can also be triggered by spending cruor by buying non-vwnm related items, or even activating/using Flux
+      Field1 will be the amount of cruor spent
+]]
+      
+     
+--[[ 0x2A can also be triggered by zoning into Abyssea:
+     Field1 will be set to your remaining time. 5 at first, then whatever new value when acquiring visiting status.
+     0x2A will likely be triggered as well when extending your time limit. Needs verification.
+]]
+
+
+--[[ 0x2A can be triggered sometimes when zoning into non-Abyssea:
+     Not sure what it means.
+]]
 
 -- Resting Message
 fields.incoming[0x02A] = L{
@@ -1284,6 +1387,40 @@ fields.incoming[0x030] = L{
     {ctype='unsigned char',     label='_unknown1',          const=0x00},        -- 0E  -- Appears to just be trash.
 }
 
+-- Synth List / Synth Recipe
+--[[ This packet is used for list of recipes, but also for details of a specific recipe.
+
+   If you ask the guild NPC that provides regular Image Suppor for recipes, 
+   s/he will give you a list of recipes, fields are as follows:
+   Field1-2: NPC ID
+   Field3: NPC Index
+   Field4-6: Unknown
+   Field7-22: Item ID of recipe
+   Field23: Unknown
+   Field24: Usually Item ID of the recipe on next page
+
+
+   If you ask a guild NPC for a specific recipe, fields are as follows:   
+   field1: item to make (item id)
+   field2,3,4: sub-crafts needed. Note that main craft will not be listed.
+      1 = woodworking
+      2 = smithing
+      3 = goldsmithing
+      4 = clothcraft	
+      5 = leatherworking
+      6 = bonecraft
+      7 = Alchemy
+      8 = Cooking
+   field5: crystal (item id)
+   field6: KeyItem needed, if any (in Big Endian)
+   field7-14: material required (item id)
+   field15-22: qty for each material above.
+   field23-24: Unknown   
+ ]]
+fields.incoming[0x031] = L{
+    {ctype='unsigned short[24]',    label='Field'},                             -- 04    
+}
+
 -- NPC Interaction Type 1
 fields.incoming[0x032] = L{
     {ctype='unsigned int',      label='NPC',                fn=id},             -- 04
@@ -1298,13 +1435,25 @@ fields.incoming[0x032] = L{
 -- NPC Interaction Type 2
 fields.incoming[0x034] = L{
     {ctype='unsigned int',      label='NPC',                fn=id},             -- 04
-    {ctype='unsigned short[16]',label='Menu Parameter'},                        -- 08
+    {ctype='data[32]',          label='Menu Parameters'},                       -- 08   
     {ctype='unsigned short',    label='NPC Index',          fn=index},          -- 28
     {ctype='unsigned short',    label='Zone',               fn=zone},           -- 2A
     {ctype='unsigned short',    label='Menu ID'},                               -- 2C   Seems to select between menus within a zone
-    {ctype='unsigned short',    label='_unknown1',          const=0x08},        -- 2E   08 for me, but FFing did nothing
+    {ctype='unsigned char',     label='_unknown1',          const=0x08},        -- 2E   08 for me, but FFing did nothing
+    {ctype='unsigned char',     label='_unknown2'},                             -- 2F
     {ctype='unsigned short',    label='_dupeZone',          fn=zone},           -- 30
     {ctype='data[2]',           label='_junk1'},                                -- 31   Always 00s for me
+}
+
+--- When messages are fishing related, the player is the Actor.
+--- For some areas, the most significant bit of the message ID is set sometimes.
+-- NPC Chat
+fields.incoming[0x036] = L{
+    {ctype='unsigned int',      label='Actor',                fn=id},             -- 04
+    {ctype='unsigned short',    label='Actor Index',          fn=index},          -- 08
+    {ctype='bit[15]',           label='Message ID'},                              -- 0A
+    {ctype='bit',               label='_unknown1'},                               -- 0B
+    {ctype='unsigned int',      label='_unknown2'},                               -- 0C  Probably junk
 }
 
 enums.indi = {
@@ -1337,22 +1486,22 @@ fields.incoming[0x037] = L{
     {ctype='unsigned short',    label='_unknown1'},                             -- 28   Called "Flags" on the old dev wiki
     {ctype='unsigned char',     label='HP %',               fn=percent},        -- 29
     {ctype='unsigned char',     label='_unknown2'},                             -- 2A   May somehow be tied to current animation (old dev wiki)
-    {ctype='unsigned char',     label='_unknown3'},                             -- 2B
-    {ctype='unsigned char',     label='_unknown4'},                             -- 2C
-    {ctype='unsigned char',     label='_unknown5'},                             -- 2D
-    {ctype='unsigned char',     label='_unknown6'},                             -- 2E
+    {ctype='unsigned char',     label='Flags'},                                 -- 2B   GM Flag, etc.
+    {ctype='unsigned char',     label='Movement Speed'},                        -- 2C   Player movement speed
+    {ctype='unsigned char',     label='_unknown3'},                             -- 2D
+    {ctype='unsigned char',     label='_unknown4'},                             -- 2E
     {ctype='unsigned char',     label='Status',             fn=status},         -- 30
     {ctype='unsigned char',     label='LS Color Red'},                          -- 31
     {ctype='unsigned char',     label='LS Color Green'},                        -- 32
     {ctype='unsigned char',     label='LS Color Blue'},                         -- 33
-    {ctype='data[8]',           label='_unknown7'},                             -- 34   Player's pet index * 8?
-    {ctype='unsigned int',      label='_unknown8'},                             -- 3C
+    {ctype='data[8]',           label='_unknown5'},                             -- 34   Player's pet index * 8?
+    {ctype='unsigned int',      label='_unknown6'},                             -- 3C
     {ctype='unsigned int',      label='Timestamp',          fn=time},           -- 40
-    {ctype='data[8]',           label='_unknown9'},                             -- 44
+    {ctype='data[8]',           label='_unknown7'},                             -- 44
     {ctype='data[8]',           label='Bit Mask'},                              -- 4C
-    {ctype='data[4]',           label='_unknown10'},                            -- 54
+    {ctype='data[4]',           label='_unknown8'},                             -- 54
     {ctype='unsigned char',     label='Indi Buff',          fn=e+{'indi'}},     -- 58
-    {ctype='data[3]',           label='_unknown11'},                            -- 59
+    {ctype='data[3]',           label='_unknown9'},                             -- 59
 }
 
 -- Model DisAppear
@@ -1409,20 +1558,20 @@ fields.incoming[0x042] = L{
 -- using a Maneuver on PUP to changing job. The two packets are the same length. The first
 -- contains information about your main job. The second contains information about your
 -- subjob and has the Subjob flag flipped.
-fields.incoming._mult[0x044] = {}
+fields.incoming._func[0x044] = {}
 fields.incoming[0x044] = function(data)
-    return fields.incoming._mult[0x044].base + fields.incoming._mult[0x044][data:sub(5,5):byte()]
+    return fields.incoming._func[0x044].base + fields.incoming._func[0x044][data:sub(5,5):byte()]
 end
 
 -- Base, shared by all jobs
-fields.incoming._mult[0x044].base = L{
+fields.incoming._func[0x044].base = L{
     {ctype='unsigned char',     label='Job'},                                   -- 04
     {ctype='bool',              label='Subjob'},                                -- 05
     {ctype='unsigned short',    label='_unknown1'},                             -- 06
 }
 
 -- PUP
-fields.incoming._mult[0x044][0x12] = L{
+fields.incoming._func[0x044][0x12] = L{
     {ctype='unsigned char',     label='Automaton Head'},                        -- 08   Harlequinn 1, Valoredge 2, Sharpshot 3, Stormwaker 4, Soulsoother 5, Spiritreaver 6
     {ctype='unsigned char',     label='Automaton Frame'},                       -- 09   Harlequinn 20, Valoredge 21, Sharpshot 22, Stormwaker 23
     {ctype='unsigned char',     label='Slot 1'},                                -- 0A   Attachment assignments are based off their position in the equipment list.
@@ -1485,7 +1634,7 @@ fields.incoming._mult[0x044][0x12] = L{
 -- For BLM, 0x29 to 0x43 appear to represent the black magic that you know
 
 -- MON
-fields.incoming._mult[0x044][0x17] = L{
+fields.incoming._func[0x044][0x17] = L{
     {ctype='unsigned short',    label='Species'},                               -- 08
     {ctype='unsigned short',    label='_unknown2'},                             -- 0A
     {ctype='unsigned short[12]',label='Instinct'},                              -- 0C   Instinct assignments are based off their position in the equipment list.
@@ -1494,11 +1643,11 @@ fields.incoming._mult[0x044][0x17] = L{
 }
 
 -- Delivery Item
-fields.incoming._mult[0x04B] = {}
+fields.incoming._func[0x04B] = {}
 fields.incoming[0x04B] = function()
     local full = S{0x01, 0x06, 0x08, 0x0A}
     return function(data)
-        return full:contains(data:byte(5, 5)) and fields.incoming._mult[0x04B].slot or fields.incoming._mult[0x04B].base
+        return full:contains(data:byte(5, 5)) and fields.incoming._func[0x04B].slot or fields.incoming._func[0x04B].base
     end
 end()
 
@@ -1540,7 +1689,7 @@ enums.delivery = {
 }
 
 -- This is always sent for every packet of this ID
-fields.incoming._mult[0x04B].base = L{
+fields.incoming._func[0x04B].base = L{
     {ctype='unsigned char',     label='Type',               fn=e+{'delivery'}}, -- 04
     {ctype='unsigned char',     label='_unknown1'},                             -- 05   FF if Type is 05, otherwise 01
     {ctype='signed char',       label='Delivery Slot'},                         -- 06   This goes left to right and then drops down a row and left to right again. Value is 00 through 07
@@ -1555,8 +1704,8 @@ fields.incoming._mult[0x04B].base = L{
 }
 
 -- If the type is 0x01, 0x06, 0x08 or 0x0A, these fields appear in the packet in addition to the base
-fields.incoming._mult[0x04B].slot = L{
-    {ref=fields.incoming._mult[0x04B].base},                                    -- 04
+fields.incoming._func[0x04B].slot = L{
+    {ref=fields.incoming._func[0x04B].base},                                    -- 04
     {ctype='char[16]',          label='Sender Name'},                           -- 14
     {ctype='unsigned int',      label='_unknown7'},                             -- 24   46 32 00 00 and 42 32 00 00 observed - Possibly flags. Rare vs. Rare/Ex.?
     {ctype='unsigned int',      label='Timestamp',          fn=utime},          -- 28
@@ -1673,6 +1822,11 @@ fields.incoming[0x05B] = L{
     {ctype='unsigned char',     label='Type',               fn=e+{'spawntype'}},-- 16   3 for regular Monsters, 0 for Treasure Caskets and NPCs
     {ctype='unsigned char',     label='_unknown1'},                             -- 17   Always 0 if Type is 3, otherwise a seemingly random non-zero number
     {ctype='unsigned int',      label='_unknown2'},                             -- 18
+}
+
+-- Dialogue Information
+fields.incoming[0x05C] = L{
+    {ctype='data[32]',          label='Menu Parameters'},                       -- 04   How information is packed in this region depends on the particular dialogue exchange.
 }
 
 -- Campaign/Besieged Map information
@@ -1855,20 +2009,20 @@ fields.incoming[0x062] = L{
 -- It also appears in three chunks, so it's double-varying.
 -- Packet was expanded in the March 2014 update and now includes a fourth packet, which contains CP values.
 
-fields.incoming._mult[0x063] = {}
+fields.incoming._func[0x063] = {}
 fields.incoming[0x063] = function(data)
-    return fields.incoming._mult[0x063].base + (fields.incoming._mult[0x063][data:sub(5,5):byte()] or L{})
+    return fields.incoming._func[0x063].base + (fields.incoming._func[0x063][data:sub(5,5):byte()] or L{})
 end
 
-fields.incoming._mult[0x063].base = L{
+fields.incoming._func[0x063].base = L{
     {ctype='unsigned short',    label='Order'},                                 -- 04
 }
 
-fields.incoming._mult[0x063][0x02] = L{
+fields.incoming._func[0x063][0x02] = L{
     {ctype='data[7]',           label='_flags1',            fn=bin+{7}},        -- 06   The 3rd bit of the last byte is the flag that indicates whether or not you are xp capped (blue levels)
 }
 
-fields.incoming._mult[0x063][0x03] = L{
+fields.incoming._func[0x063][0x03] = L{
     {ctype='unsigned short',    label='_flags1'},                               -- 06   Consistently D8 for me
     {ctype='unsigned short',    label='_flags2'},                               -- 08   Vary when I change species
     {ctype='unsigned short',    label='_flags3'},                               -- 0A   Consistent across species
@@ -1884,7 +2038,7 @@ fields.incoming._mult[0x063][0x03] = L{
     {ctype='data[128]',         label='Monster Level Char field'},              -- 5C   Mapped onto the item ID for these creatures. (00 doesn't exist, 01 is rabbit, 02 is behemoth, etc.)
 }
 
-fields.incoming._mult[0x063][0x04] = L{
+fields.incoming._func[0x063][0x04] = L{
     {ctype='unsigned short',    label='_unknown1'},                             -- 06   B0 00
     {ctype='data[126]',         label='_unknown2'},                             -- 08   FF-ing has no effect.
     {ctype='unsigned char',     label='Slime Level'},                           -- 86
@@ -2008,7 +2162,7 @@ types.alliance_member = L{
     {ctype='unsigned short',    label='Index',              fn=index},          -- 04
     {ctype='unsigned short',    label='Flags',              fn=bin+{2}},        -- 06
     {ctype='unsigned short',    label='Zone',               fn=zone},           -- 08
-    {ctype='unsigned short',    label='_unknown2'},                             -- 0A
+    {ctype='unsigned short',    label='_unknown2'},                             -- 0A	Always 0?
 }
 
 -- Alliance status update
@@ -2016,7 +2170,7 @@ fields.incoming[0x0C8] = L{
     {ctype='unsigned char',     label='_unknown1'},                             -- 04
     {ctype='data[3]',           label='_junk1'},                                -- 05
     {ref=types.alliance_member, count=18},                                      -- 08
-    {ctype='data[24]',          label='_unknown2',          const=''},          -- E0   Always 0?
+    {ctype='data[24]',          label='_unknown3',          const=''},          -- E0   Always 0?
 }
 
 types.check_item = L{
@@ -2027,9 +2181,9 @@ types.check_item = L{
 }
 
 -- Check data
-fields.incoming._mult[0x0C9] = {}
+fields.incoming._func[0x0C9] = {}
 fields.incoming[0x0C9] = function(data)
-    return fields.incoming._mult[0x0C9].base + fields.incoming._mult[0x0C9][data:byte(0x0B, 0x0B)]
+    return fields.incoming._func[0x0C9].base + fields.incoming._func[0x0C9][data:byte(0x0B, 0x0B)]
 end
 
 enums[0x0C9] = {
@@ -2038,21 +2192,21 @@ enums[0x0C9] = {
 }
 
 -- Common to all messages
-fields.incoming._mult[0x0C9].base = L{
+fields.incoming._func[0x0C9].base = L{
     {ctype='unsigned int',      label='Target ID',          fn=id},             -- 04
     {ctype='unsigned short',    label='Target Index',       fn=index},          -- 08
     {ctype='unsigned char',     label='Type',               fn=e+{0x0C9}},      -- 0A
 }
 
 -- Equipment listing
-fields.incoming._mult[0x0C9][0x03] = L{
+fields.incoming._func[0x0C9][0x03] = L{
     {ctype='unsigned char',     label='Count'},                                 -- 0B
     {ref=types.check_item,      count_ref=0x0B},                                -- 0C
 }
 
 -- Metadata
 -- The title needs to be somewhere in here, but not sure where, maybe bit packed?
-fields.incoming._mult[0x0C9][0x01] = L{
+fields.incoming._func[0x0C9][0x01] = L{
     {ctype='data[3]',           label='_junk1'},                                -- 0B
     {ctype='unsigned char',     label='_unknown2'},                             -- 0E
     {ctype='unsigned char',     label='_unknown3'},                             -- 0F
@@ -2133,7 +2287,11 @@ fields.incoming[0x0DD] = L{
     {ctype='unsigned char',     label='MP%',                fn=percent},        -- 1E
     {ctype='unsigned char',     label='_unknown4'},                             -- 1F
     {ctype='unsigned short',    label='Zone',               fn=zone},           -- 20
-    {ctype='char*',             label='Name'},                                  -- 22
+    {ctype='unsigned char',     label='Main job',           fn=job},            -- 22
+    {ctype='unsigned char',     label='Main job level'},                        -- 23
+    {ctype='unsigned char',     label='Sub job',            fn=job},            -- 24
+    {ctype='unsigned char',     label='Sub job level'},                         -- 25
+    {ctype='char*',             label='Name'},                                  -- 26
 }
 
 -- Char Update
@@ -2184,7 +2342,7 @@ fields.incoming[0x0E8] = L{
 -- Widescan Mob
 fields.incoming[0x0F4] = L{
     {ctype='unsigned short',    label='Index',              fn=index},          -- 04
-    {ctype='unsigned char',     label='_unknown1'},                             -- 06
+    {ctype='unsigned char',     label='Level'},                                 -- 06
     {ctype='unsigned char',     label='Type',               fn=e+{'ws mob'}},   -- 07
     {ctype='short',             label='X Offset',           fn=pixel},          -- 08   Offset on the map
     {ctype='short',             label='Y Offset',           fn=pixel},          -- 0A
@@ -2410,15 +2568,46 @@ fields.incoming[0x115] = L{
     {ctype='unsigned int',      label='Catch Key'},                             -- 14   This value is used in the catch key of the 0x110 packet when catching a fish
 }
 
+-- Equipset Build Response
+fields.incoming[0x116] = L{
+    {ref=types.equipset_build,  lookup={res.slots, 0x00},   count=0x10},
+}
+
+fields.incoming._func[0x117] = {}
+fields.incoming._func[0x117].base = L{
+    {ctype='unsigned char',     label='Count'},                                 -- 04
+    {ctype='unsigned char[3]',  label='_unknown1'},                             -- 05
+}
+
+-- Equipset
+fields.incoming[0x117] = function(data)
+    local count = data:byte(5, 5)
+
+    return fields.incoming._func[0x117].base + L{
+        -- Only the number given in Count will be properly populated, the rest is junk
+        {ref=types.equipset,        count=count},                                   -- 08
+        {ctype='data[%u]':format((16 - count) * 4), label='_junk1'},                -- 08 + 4 * count
+        {ref=types.equipset,        lookup={res.slots, 0x00},   count=0x10},        -- 48
+    }
+end
+
 local sizes = {}
-sizes.bool = 1
-sizes.char = 1
-sizes.short = 2
-sizes.int = 4
-sizes.long = 8
-sizes.float = 4
-sizes.double = 8
-sizes.data = 1
+sizes['bool'] = 1
+sizes['char'] = 1
+sizes['unsigned char'] = 1
+sizes['signed char'] = 1
+sizes['short'] = 2
+sizes['unsigned short'] = 2
+sizes['signed short'] = 2
+sizes['int'] = 4
+sizes['unsigned int'] = 4
+sizes['signed int'] = 4
+sizes['long'] = 8
+sizes['unsigned long'] = 8
+sizes['signed long'] = 8
+sizes['float'] = 4
+sizes['double'] = 8
+sizes['data'] = 1
 
 local non_array_types = S{'char', 'bit', 'data'}
 
@@ -2434,11 +2623,12 @@ local function parse(fs, data, index, max, lookup)
         for field in fs:it() do
             if field.ctype then
                 field = table.copy(field)
-                local ctype, count_str = field.ctype:match('(.*)%[(%d+)%]')
+                local ctype, count_str = field.ctype:match('(.*)%[(.+)%]')
+                local count_num = count_str and count_str:number() or 1
                 ctype = ctype or field.ctype
                 if count_str and not non_array_types:contains(ctype) then
                     field.ctype = ctype
-                    local ext, new_index = parse(L{field}, data, index, count_str:number())
+                    local ext, new_index = parse(L{field}, data, index, count_num)
                     res = res + ext
                     index = new_index
                 else
@@ -2453,11 +2643,13 @@ local function parse(fs, data, index, max, lookup)
 
                     res:append(field)
                     if ctype == 'bit' or ctype == 'boolbit' then
-                        local bits = count_str and count_str:number() or 1
-                        index = index + ((bit_offset + bits) / 8):floor()
-                        bit_offset = (bit_offset + bits) % 8
+                        index = index + ((bit_offset + count_num) / 8):floor()
+                        bit_offset = (bit_offset + count_num) % 8
+                    elseif ctype:endswith('*') then
+                        -- Finished, * can only be applied to the last field
+                        index = #data
                     else
-                        index = index + sizes[field.ctype:match('(%a+)[^%a]*$')]
+                        index = index + count_num * sizes[ctype]
                     end
                 end
             else

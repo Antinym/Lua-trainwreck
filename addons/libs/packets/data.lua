@@ -1,5 +1,5 @@
 --[[
-This file returns a table of known packet data.
+    This file returns a table of known packet data.
 ]]
 
 local data = {}
@@ -33,6 +33,8 @@ data.outgoing[0x04B] = {name='Servmes',             description='Requests the se
 data.outgoing[0x04D] = {name='Delivery Box',        description='Used to manipulate the delivery box.'}
 data.outgoing[0x04E] = {name='Auction',             description='Used to bid on an Auction House item.'}
 data.outgoing[0x050] = {name='Equip',               description='This command is used to equip your character.'}
+data.outgoing[0x051] = {name='Equipset',            description='This packet is sent when using /equipset.'}
+data.outgoing[0x052] = {name='Equipset Build',      description='This packet is sent when building an equipset.'}
 data.outgoing[0x05A] = {name='Conquest',            description='This command asks the server for data pertaining to conquest/besieged status.'}
 data.outgoing[0x05B] = {name='Dialog choice',       description='Chooses a dialog option.'}
 data.outgoing[0x05D] = {name='Emote',               description='This command is used in emotes.'}
@@ -44,6 +46,7 @@ data.outgoing[0x06F] = {name='Party leave',         description='Sent when leavi
 data.outgoing[0x070] = {name='Party breakup',       description='Sent when disbanding the entire party or alliance.'}
 data.outgoing[0x074] = {name='Party response',      description='Sent when responding to a party or alliance invite.'}
 data.outgoing[0x077] = {name='Party change leader', description='Sent when giving party or alliance leader to another player.'}
+data.outgoing[0x078] = {name='Party list request',  description='Sent when checking the party list.'}
 data.outgoing[0x083] = {name='Buy Item',            description='Buy an item.'}
 data.outgoing[0x084] = {name='Appraise',            description='Ask server for selling price.'}
 data.outgoing[0x085] = {name='Sell Item',           description='Sell an item from your inventory.'}
@@ -114,6 +117,7 @@ data.incoming[0x02A] = {name='Resting Message',     description='Packet sent whe
 data.incoming[0x02D] = {name='Kill Message',        description='Packet sent when you gain XP/LP/CP/JP/MP, advance RoE objectives, etc. by defeating a mob.'}
 data.incoming[0x02F] = {name='Digging Animation',   description='Generates the chocobo digging animation'}
 data.incoming[0x030] = {name='Synth Animation',     description='Generates the synthesis animation'}
+data.incoming[0x031] = {name='Synth List',          description='List of recipes or materials needed for a recipe'}
 data.incoming[0x032] = {name='NPC Interaction 1',   description='Occurs before menus and some cutscenes'}
 data.incoming[0x034] = {name='NPC Interaction 2',   description='Occurs before menus and some cutscenes'}
 data.incoming[0x036] = {name='NPC Chat',            description='Dialog from NPC\'s.'}
@@ -139,6 +143,7 @@ data.incoming[0x057] = {name='Weather Change',      description='Updates the wea
 data.incoming[0x058] = {name='Lock Target',         description='Locks your target.'}
 data.incoming[0x05A] = {name='Server Emote',        description='This packet is the server\'s response to a client /emote p.'}
 data.incoming[0x05B] = {name='Spawn',               description='Server packet sent when a new mob spawns in area.'}
+data.incoming[0x05C] = {name='Dialogue Information',description='Used when all the information required for a menu cannot be fit in an NPC Interaction packet.'}
 data.incoming[0x05E] = {name='Camp./Besieged Map',  description='Contains information about Campaign and Besieged status.'}
 data.incoming[0x061] = {name='Char Stats',          description='Packet contains a lot of data about your character\'s stats.'}
 data.incoming[0x062] = {name='Skills Update',       description='Packet that shows your weapon and magic skill stats.'}
@@ -178,11 +183,13 @@ data.incoming[0x111] = {name='Eminence Update',     description='Causes Records 
 data.incoming[0x112] = {name='RoE Quest Log',       description='Updates your RoE quest log on zone and when appropriate.'}
 data.incoming[0x113] = {name='Currency Info',       description='Contains all currencies to be displayed in the currency menu.'}
 data.incoming[0x115] = {name='Fish Bite Info',      description='Contains information about the fish that you hooked.'}
+data.incoming[0x116] = {name='Equipset Build Response', description='Returned from the server when building a set.'}
+data.incoming[0x117] = {name='Equipset Response',   description='Returned from the server after the /equipset command.'}
 
 return data
 
 --[[
-Copyright (c) 2013, Windower
+Copyright © 2013-2014, Windower
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:

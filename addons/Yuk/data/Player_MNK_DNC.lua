@@ -1,0 +1,60 @@
+include('zero.lua')
+include('includes/TRUSTS-include.lua')
+trusts = {
+    ['m1g10'] = 'Moogle',
+    ['m1g13'] = 'Cherukiki',
+    ['m1g14'] = 'Ferreous Coffin',
+    ['m1g15'] = 'Luzaf',
+    ['m1g18'] = 'UkaTotlihn',
+}
+DNC = {['name'] = 'DNC',['menu'] = 'DNC',
+['m1g10'] = 'input /ja "Drain Samba II" <me>',
+['m1g11'] = 'input /ja "Haste Samba" <me>',
+['m1g13'] = 'input /ja "Box Step" <me>',
+['m1g14'] = 'input /ja "Curing Waltz III" <me>',
+['m1g15'] = 'input /ja "Healing Waltz" <me>',
+['Alt+5'] = 'input /ja "Quickstep" <me>',
+['Alt+6'] = 'input /ja "Stutter Step" <me>',
+['Alt+7'] = 'input /ja "Drain Samba" <me>',
+['Ctrl+1'] = 'input /ja "Violent Flourish" <t>',
+['Ctrl+2'] = 'input /ja "Animated Flourish" <t>',
+['Ctrl+3'] = 'input /ja "Desperate Flourish" <t>',
+['Ctrl+4'] = 'input /ja "Reverse Flourish" <t>',
+['Ctrl+5'] = 'input /ja "Curing Waltz" <t>',
+['Ctrl+6'] = 'input /ja "Curing Waltz II" <t>',
+['Ctrl+7'] = 'input /ja "Curing Waltz III" <t>',
+['Ctrl+8'] = 'input /ja "Healing Waltz" <t>',
+['Ctrl+9'] = 'input /ja "Divine Waltz" <me>',
+}
+
+JA = {['name'] = "JA",['menu'] = 'JA',
+ ['Alt+2'] = DNC,
+ ['m1g7'] = 'input /ja "Impetus" <me>',
+ ['m1g8'] = 'input /ja "Focus" <me>',
+ ['m1g9'] = 'input /ja "Dodge" <me>',
+ ['m1g10'] = 'input /ja "Formless Strikes" <me>',
+ ['m1g11'] = 'input /ja "Perfect Counter" <me>',
+ ['m1g12'] = 'input /ja "Boost" <me>',
+ ['m1g13'] = 'input /ja "Chakra" <me>',
+ ['m1g14'] = 'input /ja "Counterstance" <me>',
+ ['m1g15'] = 'input /ja "Chi Blast" <t>',
+}
+
+WS = {['name'] = "WS",['menu'] = 'WS',
+['m1g7'] = 'input /ws "Shijin Spiral" <t>',
+['m1g9'] = 'input /ws "Spinning Attack" <t>',
+['m1g10'] = 'input /ws "Asuran Fists" <t>',
+ ['m1g11'] = 'input /ja "Perfect Counter" <me>',
+['m1g12'] = 'input /ja "Boost" <me>',
+ ['m1g13'] = 'input /ja "Chakra" <me>',
+ ['m1g14'] = 'input /ja "Counterstance" <me>',
+ ['m1g15'] = 'input /ja "Chi Blast" <t>',
+}
+Zero = {['name'] = 'Zero',['menu'] = 'Zero',
+['m1g1'] = 'lock '.. _addon.command ..' reset;',
+['m1g3'] = 'lock '.. _addon.command ..' back;',
+['m1g4'] = JA, ['m1g5'] = WS, ['m1g6'] = DNC,
+['m1g7'] = trusts, ['m1g9'] = 'yuk ld m3g1 m3g3',
+['m3g16'] = 'lock spectraljig me',
+}
+return Zero

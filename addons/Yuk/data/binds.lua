@@ -1,5 +1,4 @@
 include('zero.lua')
-}
 Zero = {['name'] = 'mZero',['menu'] = 'Zero',
 	['m2g1'] = 'lock '.. _addon.command ..' reset',
 	['m2g2'] = _addon.command ..' ll',
